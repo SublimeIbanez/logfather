@@ -16,6 +16,10 @@ lazy_static! {
     static ref FILE: std::sync::RwLock<bool> = std::sync::RwLock::new({
         false
     });
+
+    static ref FORMAT: std::sync::RwLock<String> = std::sync::RwLock::new({
+        String::from("[{timestamp} {module_path}] {level}: {message}")
+    });
 }
 
 pub fn set_path(new_path: &str) {
@@ -31,6 +35,11 @@ pub fn set_terminal(value: bool) {
 pub fn set_file(value: bool) {
     let mut file = FILE.write().expect("Could not set file output");
     *file = value;
+}
+
+pub fn set_format(new_format: &str) {
+    let mut format = FORMAT.write().expect("Could not set format");
+    *format = new_format.to_string();
 }
 
 pub enum Level {
@@ -56,6 +65,10 @@ pub fn log(level: Level, module_path: &str, message: &str) {
 
     //Make an early copy to reduce potential issues with file mutex locking PATH.read()
     let path_copy = PATH.read().expect("Could not read path").clone(); 
+    let format = FORMAT.read().expect("Could not read format").clone()
+        .replace("{timestamp}", &time)
+        .replace("{module_path}", module_path)
+        .replace("{message}", message);
 
     match path_copy {
         Some(path) => {
@@ -66,12 +79,11 @@ pub fn log(level: Level, module_path: &str, message: &str) {
                     .open(path.as_str())
                     .unwrap();
 
+                let format = format.replace("{level}", &level.to_string());
+
                 file.lock_exclusive().expect("Could not lock file for logging");
-                match writeln!(file, "[{} {}] {}: {}", 
-                    time, 
-                    module_path, 
-                    level.to_string(), 
-                    message
+                match writeln!(file, "{}", 
+                    format
                 ) {
                     Ok(_) => (),
                     Err(_) => (),
@@ -90,11 +102,10 @@ pub fn log(level: Level, module_path: &str, message: &str) {
             Level::Critical => Color::Red.bold(),
         };
 
-        println!("[{} {}] {}: {}", 
-            time, 
-            module_path, 
-            level_color.paint(level.to_string()).to_string(), 
-            message
+        let format = format.replace("{level}", &level_color.paint(&level.to_string()));
+
+        println!("{}", 
+            format
         );
     }
 }
