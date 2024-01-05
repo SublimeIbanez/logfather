@@ -4,6 +4,17 @@ use std::io::Write;
 use ansi_term::Color;
 use fs4::FileExt;
 
+// TODO:
+// 1. Implement advanced error handling for file operations
+//    - Consider fallback strategies or silent error handling
+// 2. Optimize performance for high-throughput logging
+//    - Explore asynchronous logging
+//    - Investigate file buffering
+// 3. Add configurable timestamp formats
+// 4. Conduct comprehensive testing
+//    - Focus on concurrency and file writing
+//    - Test log filtering behavior under various configurations
+
 lazy_static! {
     static ref LOGGER: std::sync::RwLock<Logger> = std::sync::RwLock::new(Logger::new());
 }
@@ -32,7 +43,7 @@ pub fn set_logger(new_logger: Logger) {
 /// logger.file(true); // Enable file output
 /// logger.path("log.txt"); // Set the path for file logging
 /// logger.level(Level::Info); // Set the minimum log level to Info
-/// logger.format("[{timestamp} {level}] {message}"); // Set a custom format for log messages
+/// logger.log_format("[{timestamp} {level}] {message}"); // Set a custom format for log messages
 /// ```
 #[derive(Clone)]
 pub struct Logger {
@@ -40,7 +51,9 @@ pub struct Logger {
     pub terminal_output: bool,
     pub file_output: bool,
     pub output_level: Level,
-    pub format: String,
+    pub log_format: String,
+    //TODO: add other fields
+    //pub timestamp_format: String,
 }
 
 impl Logger {
@@ -67,7 +80,7 @@ impl Logger {
             terminal_output: true,
             file_output: false,
             output_level: Level::Info,
-            format: String::from("[{timestamp} {module_path}] {level}: {message}")
+            log_format: String::from("[{timestamp} {module_path}] {level}: {message}")
         }
     }
 
@@ -149,10 +162,10 @@ impl Logger {
     ///
     /// ```no_run
     /// let mut logger = Logger::new();
-    /// logger.format("{timestamp} - {level}: {message}"); // Set a custom format for log messages
+    /// logger.log_format("{timestamp} - {level}: {message}"); // Set a custom format for log messages
     /// ```
-    pub fn format(&mut self, format: &str) {
-        self.format = format.to_string();
+    pub fn log_format(&mut self, format: &str) {
+        self.log_format = format.to_string();
     }
 }
 
@@ -212,44 +225,48 @@ impl ToString for Level {
 ///
 /// Note: In practice, prefer using the provided macros (`info!`, `warning!`, `error!`, `critical!`) for logging.
 pub fn log(level: Level, module_path: &str, message: &str) {
+    //Grab a clone of the logger to not hold up any other potential logging threads
     let logger = LOGGER.read().expect("Could not read logger").clone();
 
+    //If the level is too low then return
     if level < logger.output_level {
         return;
     }
 
+    //Get the time
     let now = Local::now();
     let time = now.format("%Y-%m-%d %H:%M:%S").to_string();
 
-    //Make an early copy to reduce potential issues with file mutex locking PATH.read()
-    let format = logger.format
+    //Replace the relevant sections in the format
+    let log_format = logger.log_format
         .replace("{timestamp}", &time)
         .replace("{module_path}", module_path)
         .replace("{message}", message);
 
-    match logger.path {
-        Some(path) if logger.file_output => {
-            let mut file = std::fs::OpenOptions::new()
-                .append(true)
-                .create(true)
-                .open(path.as_str())
-                .unwrap();
+    //Only write to the file if both of these are true
+    if logger.path.is_some() && logger.file_output {
+        //Can safely unwrap
+        let path = logger.path.unwrap();
 
-            let format = format.replace("{level}", &level.to_string());
+        let mut file = std::fs::OpenOptions::new()
+            .append(true)
+            .create(true)
+            .open(path.as_str())
+            .expect("Failed to open file");
 
-            file.lock_exclusive().expect("Could not lock file for logging");
-            match writeln!(file, "{}", 
-                format
-            ) {
-                Ok(_) => (),
-                Err(_) => (),
-            } 
-            file.unlock().expect("Could not unlock file after writing");
-        },
-        _ => (),
+        //Output-specific level replacement
+        let format = log_format.replace("{level}", &level.to_string());
+
+        //Lock down the file while it's being written to in case multithreaded application
+        file.lock_exclusive().expect("Could not lock file for logging");
+        match writeln!(file, "{}", format) { _ => () }  //Silent error handling 
+        file.unlock().expect("Could not unlock file after writing");
     }
 
+    //Terminal output
     if logger.terminal_output {
+        //Set color
+        //TODO: make this configurable by the user
         let level_color = match level {
             Level::Info => Color::Green.normal(),
             Level::Warning => Color::Yellow.normal(),
@@ -258,11 +275,11 @@ pub fn log(level: Level, module_path: &str, message: &str) {
             Level::None => Color::White.normal(),
         };
 
-        let format = format.replace("{level}", &level_color.paint(&level.to_string()));
+        //Output-specific level replacement
+        let format = log_format.replace("{level}", &level_color.paint(&level.to_string()));
 
-        println!("{}", 
-            format
-        );
+        //Print to the terminal
+        println!("{}", format);
     }
 }
 
