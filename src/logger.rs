@@ -54,12 +54,13 @@ impl Logger {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Level {
-    Info,
-    Warning,
-    Error,
-    Critical,
+    Info = 0,
+    Warning = 1,
+    Error = 2,
+    Critical = 3,
+    None = 4,
 }
 
 impl ToString for Level {
@@ -69,12 +70,18 @@ impl ToString for Level {
             Level::Warning => String::from("WARNING"),
             Level::Error => String::from("ERROR"),
             Level::Critical => String::from("CRITICAL"),
+            Level::None => String::from("NONE"),
         }
     }
 }
 
 pub fn log(level: Level, module_path: &str, message: &str) {
     let logger = LOGGER.read().expect("Could not read logger").clone();
+
+    if level < logger.output_level {
+        return;
+    }
+
     let now = Local::now();
     let time = now.format("%Y-%m-%d %H:%M:%S").to_string();
 
@@ -114,6 +121,7 @@ pub fn log(level: Level, module_path: &str, message: &str) {
             Level::Warning => Color::Yellow.normal(),
             Level::Error => Color::Red.normal(),
             Level::Critical => Color::Red.bold(),
+            Level::None => Color::White.normal(),
         };
 
         let format = format.replace("{level}", &level_color.paint(&level.to_string()));
