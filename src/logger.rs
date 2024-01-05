@@ -5,43 +5,56 @@ use ansi_term::Color;
 use fs4::FileExt;
 
 lazy_static! {
-    static ref PATH: std::sync::RwLock<Option<String>> = std::sync::RwLock::new({
-        None
-    });
-
-    static ref TERMINAL: std::sync::RwLock<bool> = std::sync::RwLock::new({
-        true
-    });
-
-    static ref FILE: std::sync::RwLock<bool> = std::sync::RwLock::new({
-        false
-    });
-
-    static ref FORMAT: std::sync::RwLock<String> = std::sync::RwLock::new({
-        String::from("[{timestamp} {module_path}] {level}: {message}")
-    });
+    static ref LOGGER: std::sync::RwLock<Logger> = std::sync::RwLock::new(Logger::new());
 }
 
-pub fn set_path(new_path: &str) {
-    let mut path = PATH.write().expect("Could not set logging path");
-    *path = Some(new_path.to_string());
+pub fn set_logger(new_logger: Logger) {
+    let mut logger = LOGGER.write().expect("Could not access the logger");
+    *logger = new_logger;
 }
 
-pub fn set_terminal(value: bool) {
-    let mut terminal = TERMINAL.write().expect("Could not set terminal output");
-    *terminal = value;
+#[derive(Clone)]
+pub struct Logger {
+    pub path: Option<String>,
+    pub terminal_output: bool,
+    pub file_output: bool,
+    pub output_level: Level,
+    pub format: String,
 }
 
-pub fn set_file(value: bool) {
-    let mut file = FILE.write().expect("Could not set file output");
-    *file = value;
+impl Logger {
+    pub fn new() -> Self {
+        Self {
+            path: None,
+            terminal_output: true,
+            file_output: false,
+            output_level: Level::Info,
+            format: String::from("[{timestamp} {module_path}] {level}: {message}")
+        }
+    }
+
+    pub fn path(&mut self, path: &str) {
+        self.path = Some(path.to_string());
+    }
+
+    pub fn terminal(&mut self, value: bool) {
+        self.terminal_output = value;
+    }
+
+    pub fn file(&mut self, value: bool) {
+        self.file_output = value;
+    }
+
+    pub fn level(&mut self, level: Level) {
+        self.output_level = level;
+    }
+
+    pub fn format(&mut self, format: &str) {
+        self.format = format.to_string();
+    }
 }
 
-pub fn set_format(new_format: &str) {
-    let mut format = FORMAT.write().expect("Could not set format");
-    *format = new_format.to_string();
-}
-
+#[derive(Clone)]
 pub enum Level {
     Info,
     Warning,
@@ -59,20 +72,21 @@ impl ToString for Level {
         }
     }
 }
+
 pub fn log(level: Level, module_path: &str, message: &str) {
+    let logger = LOGGER.read().expect("Could not read logger").clone();
     let now = Local::now();
     let time = now.format("%Y-%m-%d %H:%M:%S").to_string();
 
     //Make an early copy to reduce potential issues with file mutex locking PATH.read()
-    let path_copy = PATH.read().expect("Could not read path").clone(); 
-    let format = FORMAT.read().expect("Could not read format").clone()
+    let format = logger.format
         .replace("{timestamp}", &time)
         .replace("{module_path}", module_path)
         .replace("{message}", message);
 
-    match path_copy {
+    match logger.path {
         Some(path) => {
-            if FILE.read().expect("Could not read file").clone() {
+            if logger.file_output {
                 let mut file = std::fs::OpenOptions::new()
                     .append(true)
                     .create(true)
@@ -94,7 +108,7 @@ pub fn log(level: Level, module_path: &str, message: &str) {
         None => (),
     }
 
-    if TERMINAL.read().expect("Could not read terminal").clone() {
+    if logger.terminal_output {
         let level_color = match level {
             Level::Info => Color::Green.normal(),
             Level::Warning => Color::Yellow.normal(),
