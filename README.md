@@ -28,14 +28,14 @@ fn main() {
     error!("This is an error message");
 }
 ```
-Setting up for file output with specific error levels to be written:
+Setting up for only file output with specific error levels to be written:
 ```rust
 
 use logfather::*;
 
 fn main() {
     let mut logger = Logger::new();
-    logger.terminal(false) // Disable terminal output
+    logger.terminal(false) // Disable terminal output 
     logger.file(true); // Enable file output
     logger.path("log.txt"); // Set the path for file logging
     logger.level(Level::Error); // Set the minimum level
@@ -44,6 +44,19 @@ fn main() {
     warning!("This is a warning message"); // Will not be written to file
     error!("This is an error message"); // Will be written to file
     critical!("This is a critical message"); // Will be written to file
+}
+```
+Set up for both terminal and file output capturing every level
+```rust
+
+use logfather::*;
+
+fn main() {
+    let mut logger = Logger::new();
+    logger.file(true); // Enable file output
+    logger.path("log.txt"); // Set the path for file logging
+
+    info!("This is an info message");
 }
 ```
 
