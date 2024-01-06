@@ -1,6 +1,7 @@
 [package]
 name = "logfather"
 version = "0.1.0"
+license = "MIT"
 authors = ["Joshua Benn", "Ryan Mason"]
 edition = "2021"
 
