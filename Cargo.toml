@@ -1,8 +1,12 @@
 [package]
 name = "logfather"
 version = "0.1.0"
-license = "MIT"
 authors = ["Joshua Benn", "Ryan Mason"]
+description = "A simple and straightforward logging library for Rust."
+license = "MIT"
+repository = "https://github.com/JoshBenn/logfather"
+keywords = ["log", "logging", "logger", "rust"]
+categories = ["development-tools::logging"]
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
