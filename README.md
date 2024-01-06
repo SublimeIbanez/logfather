@@ -13,7 +13,7 @@ A simple, lightweight, and easy-to-use logging system which. It allows for detai
 To start using Logfather, add the following to your `Cargo.toml`:
 ```toml
 [dependencies]
-logfather = "0.1.0"
+logfather = "0.1.1"
 ```
 
 ## Usage
@@ -64,4 +64,4 @@ fn main() {
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## Contributing
-._. why would you want to do this to me?
+._. why would you do this?
