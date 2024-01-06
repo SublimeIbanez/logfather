@@ -38,8 +38,7 @@ pub fn set_logger(new_logger: Logger) {
 /// Basic usage:
 ///
 /// ``` no_run
-/// use simple_logger::logger::Logger; // Replace `simple_logger` with your crate name
-/// use simple_logger::logger::Level;
+/// use logfather::*;
 ///
 /// let mut logger = Logger::new();
 /// logger.terminal(true); // Enable terminal output
@@ -75,7 +74,7 @@ impl Logger {
     /// # Examples
     ///
     /// ``` no_run
-    /// use simple_logger::logger::Logger;
+    /// use logfather::*;
     ///
     /// let logger = Logger::new();
     /// ```
@@ -99,7 +98,7 @@ impl Logger {
     /// # Examples
     ///
     /// ``` no_run
-    /// use simple_logger::logger::Logger;
+    /// use logfather::*;
     ///
     /// let mut logger = Logger::new();
     /// logger.path("/var/log/my_app.log");
@@ -117,7 +116,7 @@ impl Logger {
     /// # Examples
     ///
     /// ``` no_run
-    /// use simple_logger::logger::Logger;
+    /// use logfather::*;
     ///
     /// let mut logger = Logger::new();
     /// logger.terminal(false); // Disable terminal output
@@ -137,7 +136,7 @@ impl Logger {
     /// # Examples
     ///
     /// ``` no_run
-    /// use simple_logger::logger::Logger;
+    /// use logfather::*;
     ///
     /// let mut logger = Logger::new();
     /// logger.file(true); // Enable file output
@@ -158,8 +157,7 @@ impl Logger {
     /// # Examples
     ///
     /// ``` no_run
-    /// use simple_logger::logger::Logger;
-    /// use simple_logger::logger::Level;
+    /// use logfather::*;
     ///
     /// let mut logger = Logger::new();
     /// logger.level(Level::Warning); // Set the minimum log level to Warning - Info levels will not be logged
@@ -179,7 +177,7 @@ impl Logger {
     /// # Examples
     ///
     /// ``` no_run
-    /// use simple_logger::logger::Logger;
+    /// use logfather::*;
     ///
     /// let mut logger = Logger::new();
     /// logger.log_format("{timestamp} - {level}: {message}"); // Set a custom format for log messages
@@ -203,8 +201,7 @@ impl Logger {
 /// # Examples
 ///
 /// ``` no_run
-/// use simple_logger::logger::Logger;
-/// use simple_logger::logger::Level;
+/// use logfather::*;
 ///
 /// // Using `Level` to set the minimum output level of the logger
 /// let mut logger = Logger::new();
@@ -243,8 +240,7 @@ impl ToString for Level {
 /// # Examples
 ///
 /// ``` no_run
-/// use simple_logger::logger::Level;
-/// use simple_logger::logger::log;
+/// use logfather::*;
 ///
 /// // Example of manually logging an error message
 /// log(Level::Error, module_path!(), "An error occurred");
@@ -315,7 +311,7 @@ pub fn log(level: Level, module_path: &str, message: &str) {
 /// # Example
 ///
 /// ``` no_run
-/// use simple_logger::logger::*;
+/// use logfather::*;
 ///
 /// info!("This is an info message");
 /// ```
@@ -331,7 +327,7 @@ macro_rules! info {
 /// # Example
 ///
 /// ``` no_run
-/// use simple_logger::logger::*;
+/// use logfather::*;
 ///
 /// warning!("This is a warning message");
 /// ```
@@ -349,7 +345,7 @@ macro_rules! warning {
 /// # Example
 ///
 /// ``` no_run
-/// use simple_logger::logger::*;
+/// use logfather::*;
 ///
 /// error!("This is an error message");
 /// ```
@@ -367,7 +363,7 @@ macro_rules! error {
 /// # Example
 ///
 /// ``` no_run
-/// use simple_logger::logger::*;
+/// use logfather::*;
 ///
 /// critical!("This is a critical message");
 /// ```
@@ -379,12 +375,6 @@ macro_rules! critical {
         log(Level::Critical, module_path!(), $message);
     };
 }
-
-pub use info;
-pub use warning;
-pub use error;
-pub use critical;
-
 
 #[cfg(test)]
 mod tests {

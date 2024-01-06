@@ -20,7 +20,7 @@ logfather = "0.1.0"
 Here's a quick example:
 ```rust
 
-use logfather::{Logger, Level};
+use logfather::*;
 
 fn main() {
     let mut logger = Logger::new();
