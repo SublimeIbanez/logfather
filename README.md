@@ -17,17 +17,33 @@ logfather = "0.1.0"
 ```
 
 ## Usage
-Here's a quick example:
+Quick setup for outputting to terminal:
+```rust
+
+use logfather::*;
+
+fn main() {
+    let mut logger = Logger::new(); //Terminal output is enabled by default
+
+    error!("This is an error message");
+}
+```
+Setting up for file output with specific error levels to be written:
 ```rust
 
 use logfather::*;
 
 fn main() {
     let mut logger = Logger::new();
+    logger.terminal(false) // Disable terminal output
     logger.file(true); // Enable file output
     logger.path("log.txt"); // Set the path for file logging
+    logger.level(Level::Error); // Set the minimum level
 
-    logfather::info!("This is an info message");
+    info!("This is an info message"); // Will not be written to file
+    warning!("This is a warning message"); // Will not be written to file
+    error!("This is an error message"); // Will be written to file
+    critical!("This is a critical message"); // Will be written to file
 }
 ```
 
