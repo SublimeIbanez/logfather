@@ -1,6 +1,6 @@
 # Logfather
 
-A simple, lightweight, and easy-to-use logging system which. It allows for detailed log messages, configurable output levels, and supports both file and terminal output.
+A simple, lightweight, and easy-to-use logging system. It allows for detailed log messages, configurable output levels, and supports both file and terminal output.
 
 ## Features
 - Easy to set up and use.
