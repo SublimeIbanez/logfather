@@ -37,7 +37,10 @@ pub fn set_logger(new_logger: Logger) {
 ///
 /// Basic usage:
 ///
-/// ```no_run
+/// ``` no_run
+/// use simple_logger::logger::Logger; // Replace `simple_logger` with your crate name
+/// use simple_logger::logger::Level;
+///
 /// let mut logger = Logger::new();
 /// logger.terminal(true); // Enable terminal output
 /// logger.file(true); // Enable file output
@@ -71,7 +74,9 @@ impl Logger {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ``` no_run
+    /// use simple_logger::logger::Logger;
+    ///
     /// let logger = Logger::new();
     /// ```
     pub fn new() -> Self {
@@ -93,12 +98,15 @@ impl Logger {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ``` no_run
+    /// use simple_logger::logger::Logger;
+    ///
     /// let mut logger = Logger::new();
     /// logger.path("/var/log/my_app.log");
     /// ```
     pub fn path(&mut self, path: &str) {
         self.path = Some(path.to_string());
+        set_logger(self.clone());
     }
 
     /// Enables or disables terminal output for the logger - enabled by default.
@@ -108,12 +116,15 @@ impl Logger {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ``` no_run
+    /// use simple_logger::logger::Logger;
+    ///
     /// let mut logger = Logger::new();
     /// logger.terminal(false); // Disable terminal output
     /// ```
     pub fn terminal(&mut self, value: bool) {
         self.terminal_output = value;
+        set_logger(self.clone());
     }
 
     /// Enables or disables file output for the logger - disabled by default.
@@ -125,13 +136,16 @@ impl Logger {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ``` no_run
+    /// use simple_logger::logger::Logger;
+    ///
     /// let mut logger = Logger::new();
     /// logger.file(true); // Enable file output
     /// logger.path("/var/log/my_app.log"); // Set the path for file logging
     /// ```
     pub fn file(&mut self, value: bool) {
         self.file_output = value;
+        set_logger(self.clone());
     }
 
     /// Sets the minimum output level for the logger.
@@ -143,12 +157,16 @@ impl Logger {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ``` no_run
+    /// use simple_logger::logger::Logger;
+    /// use simple_logger::logger::Level;
+    ///
     /// let mut logger = Logger::new();
     /// logger.level(Level::Warning); // Set the minimum log level to Warning - Info levels will not be logged
     /// ```
     pub fn level(&mut self, level: Level) {
         self.output_level = level;
+        set_logger(self.clone());
     }
 
     /// Sets the format string for log messages.
@@ -160,12 +178,15 @@ impl Logger {
     ///
     /// # Examples
     ///
-    /// ```no_run
+    /// ``` no_run
+    /// use simple_logger::logger::Logger;
+    ///
     /// let mut logger = Logger::new();
     /// logger.log_format("{timestamp} - {level}: {message}"); // Set a custom format for log messages
     /// ```
     pub fn log_format(&mut self, format: &str) {
         self.log_format = format.to_string();
+        set_logger(self.clone());
     }
 }
 
@@ -181,7 +202,10 @@ impl Logger {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ``` no_run
+/// use simple_logger::logger::Logger;
+/// use simple_logger::logger::Level;
+///
 /// // Using `Level` to set the minimum output level of the logger
 /// let mut logger = Logger::new();
 /// logger.level(Level::Error); // Only log errors and critical messages
@@ -218,7 +242,10 @@ impl ToString for Level {
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ``` no_run
+/// use simple_logger::logger::Level;
+/// use simple_logger::logger::log;
+///
 /// // Example of manually logging an error message
 /// log(Level::Error, module_path!(), "An error occurred");
 /// ```
@@ -287,7 +314,9 @@ pub fn log(level: Level, module_path: &str, message: &str) {
 ///
 /// # Example
 ///
-/// ```no_run
+/// ``` no_run
+/// use simple_logger::logger::*;
+///
 /// info!("This is an info message");
 /// ```
 #[macro_export]
@@ -301,7 +330,9 @@ macro_rules! info {
 ///
 /// # Example
 ///
-/// ```no_run
+/// ``` no_run
+/// use simple_logger::logger::*;
+///
 /// warning!("This is a warning message");
 /// ```
 ///
@@ -317,7 +348,9 @@ macro_rules! warning {
 ///
 /// # Example
 ///
-/// ```no_run
+/// ``` no_run
+/// use simple_logger::logger::*;
+///
 /// error!("This is an error message");
 /// ```
 ///
@@ -333,7 +366,9 @@ macro_rules! error {
 ///
 /// # Example
 ///
-/// ```no_run
+/// ``` no_run
+/// use simple_logger::logger::*;
+///
 /// critical!("This is a critical message");
 /// ```
 ///
@@ -349,3 +384,65 @@ pub use info;
 pub use warning;
 pub use error;
 pub use critical;
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_level_filtering() {
+        let mut logger = Logger::new();
+        logger.level(Level::Error); //Error as basis
+
+        //Test levels below
+        assert!(Level::Info < logger.output_level);
+        assert!(Level::Warning < logger.output_level);
+
+        //Test levels above
+        assert!(Level::Error >= logger.output_level);
+        assert!(Level::Critical >= logger.output_level);
+    }
+
+    #[test]
+    fn test_level_none() {
+        let mut logger = Logger::new();
+        logger.level(Level::None); //Set to None
+
+        //Test levels below
+        assert!(Level::Info < logger.output_level);
+        assert!(Level::Warning < logger.output_level);
+        assert!(Level::Error < logger.output_level);
+        assert!(Level::Critical < logger.output_level);
+    }
+
+    #[test]
+    fn test_log_format() {
+        let mut logger = Logger::new();
+        logger.log_format("{level} - {message}");
+
+        let formatted_message = logger.log_format
+            .replace("{level}", "INFO")
+            .replace("{message}", "Test message");
+
+        assert_eq!(formatted_message, "INFO - Test message");
+    }
+
+    #[test]
+    fn test_file_output() {
+        let mut logger = Logger::new();
+        let test_file_path = "test_log.txt";
+        
+        logger.file(true); //Enable file output
+        logger.path(test_file_path); //Set test file path
+
+        log(Level::Info, "tests::test_file_output", "This is a test log message");
+
+        // Read the file and check if it contains the test log message
+        let file_content = std::fs::read_to_string(test_file_path).expect("Failed to read log file");
+        assert!(file_content.contains("This is a test log message"));
+
+        // Clean up: Remove the test log file after the test
+        std::fs::remove_file(test_file_path).expect("Failed to delete test log file");
+    }
+}
