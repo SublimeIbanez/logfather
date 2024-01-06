@@ -272,6 +272,7 @@ pub fn log(level: Level, module_path: &str, message: &str) {
         let path = logger.path.unwrap();
 
         let mut file = std::fs::OpenOptions::new()
+            .read(true)
             .append(true)
             .create(true)
             .open(path.as_str())
