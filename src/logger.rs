@@ -20,9 +20,9 @@ lazy_static! {
 
 /// Sets the current Logger struct
 /// - Useful for if the log configuration was saved and reloaded
-pub fn set_logger(new_logger: Logger) {
+pub fn set_logger(new_logger: &Logger) {
     let mut logger = LOGGER.write().expect("Could not access the logger");
-    *logger = new_logger;
+    *logger = new_logger.clone();
 }
 
 /// `Logger` is a struct that encapsulates the configuration for the logging system.
@@ -32,7 +32,9 @@ pub fn set_logger(new_logger: Logger) {
 /// - `terminal_output`: Boolean flag to enable or disable logging to the terminal.
 /// - `file_output`: Boolean flag to enable or disable logging to a file.
 /// - `output_level`: Minimum level of log messages to output. Messages below this level will be ignored.
-/// - `ignore_levels`: List of log levels to ignore - more granular than output_level.
+/// - `ignore`: Global list of log levels to ignore - more granular than output_level.
+/// - `file_ignore`: List of log levels that file output ignores.
+/// - `terminal_ignore`: List of log levels that terminal output ignores.
 /// - `log_format`: The format string for log messages. Placeholders like `{timestamp}`, `{module_path}`, `{level}`, and `{message}` will be replaced with actual values.
 /// - `timestampt_format`: The format string for time display. Placeholders like `%y`, `%m`, `%d`, `%H`, `%M`, and `%S` will be replaced with actual values.
 ///
@@ -48,19 +50,23 @@ pub fn set_logger(new_logger: Logger) {
 /// logger.file(true); // Enable file output
 /// logger.path("log.txt"); // Set the path for file logging
 /// logger.level(Level::Info); // Set the minimum log level to Info
-/// logger.ignore(Level::Error); // Ignore the Error level messages
+/// logger.ignore(Level::Error); // Globally ignore the Error level messages
+/// logger.file_ignore(Level::Error); //Ignores the Error level messages for file output
+/// logger.terminal_ignore(Level::Error); //Ignores the Error level messages for terminal output
 /// logger.log_format("[{timestamp} {level}] {message}"); // Set a custom format for log messages
 /// logger.timestamp_format("%Y-%m-%d %H:%M:%S"); // Set a custom format for timestamps
 /// ```
 #[derive(Clone)]
 pub struct Logger {
-    pub path: Option<String>,
-    pub terminal_output: bool,
-    pub file_output: bool,
-    pub output_level: Level,
-    pub ignore_levels: Vec<Level>,
-    pub log_format: String,
-    pub timestamp_format: String,
+    pub(crate) path: Option<String>,
+    pub(crate) terminal_output: bool,
+    pub(crate) file_output: bool,
+    pub(crate) output_level: Level,
+    pub(crate) ignore: Vec<Level>,
+    pub(crate) file_ignore: Vec<Level>,
+    pub(crate) terminal_ignore: Vec<Level>,
+    pub(crate) log_format: String,
+    pub(crate) timestamp_format: String,
     //TODO: add other fields
 }
 
@@ -90,7 +96,9 @@ impl Logger {
             terminal_output: true,
             file_output: false,
             output_level: Level::Info,
-            ignore_levels: Vec::new(),
+            ignore: Vec::new(),
+            file_ignore: Vec::new(),
+            terminal_ignore: Vec::new(),
             log_format: String::from("[{timestamp} {level} {module_path}] {message}"),
             timestamp_format: String::from("%Y-%m-%d %H:%M:%S"),
         }
@@ -111,9 +119,10 @@ impl Logger {
     /// let mut logger = Logger::new();
     /// logger.path("/var/log/my_app.log");
     /// ```
-    pub fn path(&mut self, path: &str) {
+    pub fn path(&mut self, path: &str) -> Self {
         self.path = Some(path.to_string());
-        set_logger(self.clone());
+        set_logger(self);
+        return self.to_owned();
     }
 
     /// Enables or disables terminal output for the logger - enabled by default.
@@ -129,9 +138,10 @@ impl Logger {
     /// let mut logger = Logger::new();
     /// logger.terminal(false); // Disable terminal output
     /// ```
-    pub fn terminal(&mut self, value: bool) {
+    pub fn terminal(&mut self, value: bool) -> Self {
         self.terminal_output = value;
-        set_logger(self.clone());
+        set_logger(self);
+        return self.to_owned();
     }
 
     /// Enables or disables file output for the logger - disabled by default.
@@ -150,9 +160,10 @@ impl Logger {
     /// logger.file(true); // Enable file output
     /// logger.path("/var/log/my_app.log"); // Set the path for file logging
     /// ```
-    pub fn file(&mut self, value: bool) {
+    pub fn file(&mut self, value: bool) -> Self {
         self.file_output = value;
-        set_logger(self.clone());
+        set_logger(self);
+        return self.to_owned();
     }
 
     /// Sets the minimum output level for the logger.
@@ -170,9 +181,10 @@ impl Logger {
     /// let mut logger = Logger::new();
     /// logger.level(Level::Warning); // Set the minimum log level to Warning - Info levels will not be logged
     /// ```
-    pub fn level(&mut self, level: Level) {
+    pub fn level(&mut self, level: Level) -> Self {
         self.output_level = level;
-        set_logger(self.clone());
+        set_logger(self);
+        return self.to_owned();
     }
 
     /// Adds a level to ignore to the list.
@@ -190,9 +202,52 @@ impl Logger {
     /// let mut logger = Logger::new();
     /// logger.ignore(Level::Warning); // Messages of `Warning` level will be ignored
     /// ```
-    pub fn ignore(&mut self, level: Level) {
-        self.ignore_levels.push(level);
-        set_logger(self.clone());
+    pub fn ignore(&mut self, level: Level) -> Self {
+        self.ignore.push(level);
+        set_logger(self);
+        return self.to_owned();
+    }
+
+    /// Adds a level to ignore to the file_ignore list.
+    ///
+    /// Log messages of this level will be ignored when writing to the file.
+    ///
+    /// # Arguments
+    /// * `level` - The `Level` of log messages to be ignored.
+    ///
+    /// # Examples
+    ///
+    /// ``` no_run
+    /// use logfather::*;
+    ///
+    /// let mut logger = Logger::new();
+    /// logger.file_ignore(Level::Warning); // Messages of `Warning` level will be ignored
+    /// ```
+    pub fn file_ignore(&mut self, level: Level) -> Self {
+        self.file_ignore.push(level);
+        set_logger(self);
+        return self.to_owned();
+    }
+
+    /// Adds a level to ignore to the terminal_ignore list.
+    ///
+    /// Log messages of this level will be ignored when writing to the terminal.
+    ///
+    /// # Arguments
+    /// * `level` - The `Level` of log messages to be ignored.
+    ///
+    /// # Examples
+    ///
+    /// ``` no_run
+    /// use logfather::*;
+    ///
+    /// let mut logger = Logger::new();
+    /// logger.terminal_ignore(Level::Warning); // Messages of `Warning` level will be ignored
+    /// ```
+    pub fn terminal_ignore(&mut self, level: Level) -> Self {
+        self.terminal_ignore.push(level);
+        set_logger(self);
+        return self.to_owned();
     }
 
     /// Sets the format string for log messages.
@@ -210,9 +265,10 @@ impl Logger {
     /// let mut logger = Logger::new();
     /// logger.log_format("{timestamp} - {level}: {message}"); // Set a custom format for log messages
     /// ```
-    pub fn log_format(&mut self, format: &str) {
+    pub fn log_format(&mut self, format: &str) -> Self {
         self.log_format = format.to_string();
-        set_logger(self.clone());
+        set_logger(&self);
+        return self.to_owned();
     }
 
     /// Sets the format string for timestamps within the log.
@@ -232,9 +288,10 @@ impl Logger {
     /// let mut logger = Logger::new();
     /// logger.timestamp_format("%m-%d-%y @%H:%M:%S"); // Set a custom format for timestamp display
     /// ```
-    pub fn timestamp_format(&mut self, format: &str) {
+    pub fn timestamp_format(&mut self, format: &str) -> Self {
         self.timestamp_format = format.to_string();
-        set_logger(self.clone());
+        set_logger(self);
+        return self.to_owned();
     }
 }
 
@@ -305,7 +362,7 @@ pub fn log(level: Level, module_path: &str, message: &str) {
     let logger = LOGGER.read().expect("Could not read logger").clone();
 
     //If the level is too low then return
-    if level < logger.output_level {
+    if level < logger.output_level || logger.ignore.contains(&level) {
         return;
     }
 
@@ -320,7 +377,7 @@ pub fn log(level: Level, module_path: &str, message: &str) {
         .replace("{message}", message);
 
     //Only write to the file if both of these are true
-    if logger.path.is_some() && logger.file_output {
+    if logger.path.is_some() && logger.file_output && !logger.file_ignore.contains(&level) {
         //Can safely unwrap
         let path = logger.path.unwrap();
 
@@ -341,7 +398,7 @@ pub fn log(level: Level, module_path: &str, message: &str) {
     }
 
     //Terminal output
-    if logger.terminal_output {
+    if logger.terminal_output && !logger.terminal_ignore.contains(&level) {
         //Set color
         //TODO: make this configurable by the user
         let level_color = match level {
@@ -395,6 +452,22 @@ macro_rules! debug {
     };
 }
 
+/// Logs a message for debugging.
+///
+/// # Example
+///
+/// ``` no_run
+/// use logfather::*;
+///
+/// dbg!("This is a debug message");
+/// ```
+#[macro_export]
+macro_rules! dbg {
+    ($message:expr) => {
+        log(Level::Debug, module_path!(), $message);
+    };
+}
+
 /// Logs a warning message.
 ///
 /// # Example
@@ -408,6 +481,24 @@ macro_rules! debug {
 /// This macro simplifies the process of logging a message at the `Warning` level.
 #[macro_export]
 macro_rules! warning {
+    ($message:expr) => {
+        log(Level::Warning, module_path!(), $message);
+    };
+}
+
+/// Logs a warning message.
+///
+/// # Example
+///
+/// ``` no_run
+/// use logfather::*;
+///
+/// warn!("This is a warning message");
+/// ```
+///
+/// This macro simplifies the process of logging a message at the `Warning` level.
+#[macro_export]
+macro_rules! warn {
     ($message:expr) => {
         log(Level::Warning, module_path!(), $message);
     };

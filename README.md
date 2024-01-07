@@ -14,7 +14,7 @@ A simple, lightweight, and easy-to-use logging system. It allows for detailed lo
 To start using Logfather, add the following to your `Cargo.toml`:
 ```toml
 [dependencies]
-logfather = "0.2.1"
+logfather = "0.2.2"
 ```
 - Minimum supported Rust version: `1.63.0`
 
