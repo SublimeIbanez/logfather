@@ -1,6 +1,6 @@
 [package]
 name = "logfather"
-version = "0.1.1"
+version = "0.1.10"
 authors = ["Joshua Benn", "Ryan Mason"]
 description = "A simple and straightforward logging library for Rust."
 license = "MIT"

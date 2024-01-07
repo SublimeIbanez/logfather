@@ -91,7 +91,7 @@ impl Logger {
             file_output: false,
             output_level: Level::Info,
             ignore_levels: Vec::new(),
-            log_format: String::from("[{timestamp} {module_path}] {level}: {message}"),
+            log_format: String::from("[{timestamp} {level} {module_path}] {message}"),
             timestamp_format: String::from("%Y-%m-%d %H:%M:%S"),
         }
     }
@@ -243,6 +243,7 @@ impl Logger {
 /// # Variants
 ///
 /// - `Info`: Used for informational messages.
+/// - `Debug`: Used for debug messages.
 /// - `Warning`: Used for warning messages.
 /// - `Error`: Used for error messages.
 /// - `Critical`: Used for critical error messages that might require immediate attention.
@@ -459,9 +460,10 @@ mod tests {
 
         //Test levels below
         assert!(Level::Info < logger.output_level);
+        assert!(Level::Debug < logger.output_level);
         assert!(Level::Warning < logger.output_level);
 
-        //Test levels above
+        //Test levels equal-to-or-above
         assert!(Level::Error >= logger.output_level);
         assert!(Level::Critical >= logger.output_level);
     }
@@ -473,6 +475,7 @@ mod tests {
 
         //Test levels below
         assert!(Level::Info < logger.output_level);
+        assert!(Level::Debug < logger.output_level);
         assert!(Level::Warning < logger.output_level);
         assert!(Level::Error < logger.output_level);
         assert!(Level::Critical < logger.output_level);
