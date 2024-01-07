@@ -452,6 +452,22 @@ macro_rules! debug {
     };
 }
 
+/// Logs a message for debugging.
+///
+/// # Example
+///
+/// ``` no_run
+/// use logfather::*;
+///
+/// dbg!("This is a debug message");
+/// ```
+#[macro_export]
+macro_rules! dbg {
+    ($message:expr) => {
+        log(Level::Debug, module_path!(), $message);
+    };
+}
+
 /// Logs a warning message.
 ///
 /// # Example
