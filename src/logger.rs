@@ -1,7 +1,6 @@
-use chrono::prelude::Local;
+use chrono::{prelude::Local, Utc};
 use lazy_static::lazy_static;
 use std::io::Write;
-use ansi_term::Color;
 use fs4::FileExt;
 
 // TODO:
@@ -66,6 +65,7 @@ pub struct Logger {
     pub(crate) file_ignore: Vec<Level>,
     pub(crate) terminal_ignore: Vec<Level>,
     pub(crate) log_format: String,
+    pub(crate) timezone: TimeZone,
     pub(crate) timestamp_format: String,
     //TODO: add other fields
 }
@@ -100,6 +100,7 @@ impl Logger {
             file_ignore: Vec::new(),
             terminal_ignore: Vec::new(),
             log_format: String::from("[{timestamp} {level} {module_path}] {message}"),
+            timezone: TimeZone::Local,
             timestamp_format: String::from("%Y-%m-%d %H:%M:%S"),
         }
     }
@@ -271,6 +272,25 @@ impl Logger {
         return self.to_owned();
     }
 
+    /// Sets the preferred timezone for the log display.
+    ///
+    /// # Arguments
+    /// * `timezone` - A value which depicts Local or UTC timezone preference.
+    ///
+    /// # Examples
+    ///
+    /// ``` no_run
+    /// use logfather::*;
+    ///
+    /// let mut logger = Logger::new();
+    /// logger.timezone(TimeZone::Utc); // Set timezone to either be local or utc
+    /// ```
+    pub fn timezone(&mut self, timezone: TimeZone) -> Self {
+        self.timezone = timezone;
+        set_logger(&self);
+        return self.to_owned();
+    }
+
     /// Sets the format string for timestamps within the log.
     ///
     /// The format string can contain placeholders like:
@@ -299,12 +319,16 @@ impl Logger {
 ///
 /// # Variants
 ///
-/// - `Info`: Used for informational messages.
+/// - `Trace`: Used for standard output - lowest level.
 /// - `Debug`: Used for debug messages.
+/// - `Info`: Used for informational messages.
 /// - `Warning`: Used for warning messages.
 /// - `Error`: Used for error messages.
 /// - `Critical`: Used for critical error messages that might require immediate attention.
 /// - `None`: Special level used to disable logging.
+///
+/// # Values:
+/// None > Critical > Error > Warning > Info > Debug > Trace
 ///
 /// # Examples
 ///
@@ -317,25 +341,48 @@ impl Logger {
 /// ```
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Level {
-    Info = 0,
+    Trace = 0,
     Debug = 1,
-    Warning = 2,
-    Error = 3,
-    Critical = 4,
+    Info = 2,
+    Warning = 3,
+    Error = 4,
+    Critical = 5,
     None = 255,
 }
 
 impl ToString for Level {
     fn to_string(&self) -> String {
         match self {
-            Level::Info => String::from("INFO"),
+            Level::Trace => String::from("TRACE"),
             Level::Debug => String::from("DEBUG"),
+            Level::Info => String::from("INFO"),
             Level::Warning => String::from("WARNING"),
             Level::Error => String::from("ERROR"),
             Level::Critical => String::from("CRITICAL"),
             Level::None => String::from("NONE"),
         }
     }
+}
+
+/// TimeZone selection.
+///
+/// # Variants
+///
+/// - `Local`: Time will be displayed in local time (default).
+/// - `Utc`: Time will be displayed in Zulu (UTC) time.
+///
+/// # Examples
+///
+/// ``` no_run
+/// use logfather::*;
+///
+/// let mut logger = Logger::new();
+/// logger.timezone(TimeZone::Utc); // Sets timezone to UTC
+/// ```
+#[derive(Clone)]
+pub enum TimeZone {
+    Local,
+    Utc,
 }
 
 /// Logs a message with the specified log level and module path.
@@ -367,8 +414,16 @@ pub fn log(level: Level, module_path: &str, message: &str) {
     }
 
     //Get the time
-    let now = Local::now();
-    let time = now.format(&logger.timestamp_format).to_string();
+    let time = match logger.timezone {
+        TimeZone::Local => {
+            let now = Local::now();
+            now.format(&logger.timestamp_format).to_string()
+        },
+        TimeZone::Utc => {
+            let now = Utc::now();
+            now.format(&logger.timestamp_format).to_string()
+        },
+    };
 
     //Replace the relevant sections in the format
     let log_format = logger.log_format
@@ -402,17 +457,18 @@ pub fn log(level: Level, module_path: &str, message: &str) {
         //Set color
         //TODO: make this configurable by the user
         let level_color = match level {
-            Level::Info => Color::Green.normal(),
-            Level::Debug => Color::Blue.normal(),
-            Level::Warning => Color::Yellow.normal(),
-            Level::Error => Color::Red.normal(),
-            Level::Critical => Color::Red.bold(),
-            Level::None => Color::White.normal(), // Retain for addition purposes
+            Level::Trace => "\x1b[45m", // No color
+            Level::Debug=> "\x1b[34m", // Blue
+            Level::Info => "\x1b[32m", // Green
+            Level::Warning => "\x1b[33m", // Yellow
+            Level::Error => "\x1b[31m", // Red
+            Level::Critical => "\x1b[1m\x1b[31m", //Bold Red
+            Level::None => "\x1b[37m", // Retain for addition purposes - code that resets the text
         };
 
         //Output-specific level replacement
         let format = log_format.replace(
-            "{level}", &level_color.paint(level.to_string()).to_string()
+            "{level}", &format!("{}{}{}", level_color, level.to_string(), "\x1b[0m")
         );
 
         //Print to the terminal
@@ -420,19 +476,19 @@ pub fn log(level: Level, module_path: &str, message: &str) {
     }
 }
 
-/// Logs an informational message.
+/// Logs a message for tracing - very low priority.
 ///
 /// # Example
 ///
 /// ``` no_run
-/// use logfather::*;
+/// use logfather::trace;
 ///
-/// info!("This is an info message");
+/// trace!("This is a debug message");
 /// ```
 #[macro_export]
-macro_rules! info {
+macro_rules! trace {
     ($message:expr) => {
-        log(Level::Info, module_path!(), $message);
+        $crate::log($crate::Level::Trace, module_path!(), $message);
     };
 }
 
@@ -441,14 +497,30 @@ macro_rules! info {
 /// # Example
 ///
 /// ``` no_run
-/// use logfather::*;
+/// use logfather::debug;
 ///
 /// debug!("This is a debug message");
 /// ```
 #[macro_export]
 macro_rules! debug {
     ($message:expr) => {
-        log(Level::Debug, module_path!(), $message);
+        $crate::log($crate::Level::Debug, module_path!(), $message);
+    };
+}
+
+/// Logs an informational message.
+///
+/// # Example
+///
+/// ``` no_run
+/// use logfather::info;
+///
+/// info!("This is an info message");
+/// ```
+#[macro_export]
+macro_rules! info {
+    ($message:expr) => {
+        $crate::log($crate::Level::Info, module_path!(), $message);
     };
 }
 
@@ -457,7 +529,7 @@ macro_rules! debug {
 /// # Example
 ///
 /// ``` no_run
-/// use logfather::*;
+/// use logfather::warning;
 ///
 /// warning!("This is a warning message");
 /// ```
@@ -466,7 +538,7 @@ macro_rules! debug {
 #[macro_export]
 macro_rules! warning {
     ($message:expr) => {
-        log(Level::Warning, module_path!(), $message);
+        $crate::log($crate::Level::Warning, module_path!(), $message);
     };
 }
 
@@ -475,7 +547,7 @@ macro_rules! warning {
 /// # Example
 ///
 /// ``` no_run
-/// use logfather::*;
+/// use logfather::warn;
 ///
 /// warn!("This is a warning message");
 /// ```
@@ -484,7 +556,7 @@ macro_rules! warning {
 #[macro_export]
 macro_rules! warn {
     ($message:expr) => {
-        log(Level::Warning, module_path!(), $message);
+        $crate::log($crate::Level::Warning, module_path!(), $message);
     };
 }
 
@@ -493,7 +565,7 @@ macro_rules! warn {
 /// # Example
 ///
 /// ``` no_run
-/// use logfather::*;
+/// use logfather::error;
 ///
 /// error!("This is an error message");
 /// ```
@@ -502,7 +574,7 @@ macro_rules! warn {
 #[macro_export]
 macro_rules! error {
     ($message:expr) => {
-        log(Level::Error, module_path!(), $message);
+        $crate::log($crate::Level::Error, module_path!(), $message);
     };
 }
 
@@ -511,7 +583,7 @@ macro_rules! error {
 /// # Example
 ///
 /// ``` no_run
-/// use logfather::*;
+/// use logfather::critical;
 ///
 /// critical!("This is a critical message");
 /// ```
@@ -520,7 +592,25 @@ macro_rules! error {
 #[macro_export]
 macro_rules! critical {
     ($message:expr) => {
-        log(Level::Critical, module_path!(), $message);
+        $crate::log($crate::Level::Critical, module_path!(), $message);
+    };
+}
+
+/// Logs a critical message.
+///
+/// # Example
+///
+/// ``` no_run
+/// use logfather::crit;
+///
+/// crit!("This is a critical message");
+/// ```
+///
+/// This macro is intended for critical errors that require immediate attention. Logging at this level typically indicates a serious failure in a component of the application.
+#[macro_export]
+macro_rules! crit {
+    ($message:expr) => {
+        $crate::log($crate::Level::Critical, module_path!(), $message);
     };
 }
 
@@ -598,38 +688,4 @@ mod tests {
         // Verify that no file is created or written to
         assert!(!fs::metadata(test_file_path).is_ok(), "Log file should not exist when file output is disabled");
     }
-
-    // #[test]
-    // fn test_log_level_filtering() {
-    //     let mut logger = Logger::new();
-    //     let test_file_path = "test_log_level.txt";
-
-    //     let _ = fs::remove_file(test_file_path);
-
-    //     // Set file output and path
-    //     logger.file(true);
-    //     logger.path(test_file_path);
-
-    //     // Set log level to Warning and log an Info message (should not be logged)
-    //     logger.level(Level::Warning);
-    //     log(Level::Info, "test_log_level_filtering", "Info level message");
-        
-    //     // Verify that the Info message is not in the file
-    //     let mut file = File::open(test_file_path).unwrap();
-    //     let mut contents = String::new();
-    //     file.read_to_string(&mut contents).unwrap();
-    //     assert!(!contents.contains("Info level message"), "Info level message should not be logged");
-
-    //     // Log a Warning message (should be logged)
-    //     log(Level::Warning, "test_log_level_filtering", "Warning level message");
-
-    //     // Read file again and check for the Warning message
-    //     file = File::open(test_file_path).unwrap();
-    //     contents.clear();
-    //     file.read_to_string(&mut contents).unwrap();
-    //     assert!(contents.contains("Warning level message"), "Warning level message should be logged");
-
-    //     // Clean up: remove the test log file
-    //     fs::remove_file(test_file_path).expect("Failed to delete test log file");
-    // }
 }
