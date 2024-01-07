@@ -16,6 +16,7 @@ To start using Logfather, add the following to your `Cargo.toml`:
 [dependencies]
 logfather = "0.2.0"
 ```
+- Minimum supported rust version: 1.63.0
 
 ## Usage
 Quick setup for outputting to terminal:
