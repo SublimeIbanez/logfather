@@ -1,4 +1,4 @@
-use chrono::prelude::*;
+use chrono::prelude::Local;
 use lazy_static::lazy_static;
 use std::io::Write;
 use ansi_term::Color;
@@ -457,7 +457,7 @@ macro_rules! debug {
 /// # Example
 ///
 /// ``` no_run
-/// use logfather::*;
+/// use logfather::{dbg, Level, log};
 ///
 /// dbg!("This is a debug message");
 /// ```
