@@ -58,7 +58,7 @@ fn main() {
     let mut logger = Logger::new(); // Terminal output is enabled by default
     logger.file(true); // Enable file output
     logger.path("log.txt"); // Set the path for file logging
-    logger.ignore(Level::Warning);
+    logger.ignore(Level::Warning); // Set the specific level to ignore
 
     debug!("This is a debug message");
     warning!("This is a warning message"); // Will be ignored
