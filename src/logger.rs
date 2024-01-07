@@ -111,9 +111,10 @@ impl Logger {
     /// let mut logger = Logger::new();
     /// logger.path("/var/log/my_app.log");
     /// ```
-    pub fn path(&mut self, path: &str) {
+    pub fn path(&mut self, path: &str) -> &mut Self {
         self.path = Some(path.to_string());
         set_logger(self.clone());
+        return self;
     }
 
     /// Enables or disables terminal output for the logger - enabled by default.
@@ -129,9 +130,10 @@ impl Logger {
     /// let mut logger = Logger::new();
     /// logger.terminal(false); // Disable terminal output
     /// ```
-    pub fn terminal(&mut self, value: bool) {
+    pub fn terminal(&mut self, value: bool) -> &mut Self {
         self.terminal_output = value;
         set_logger(self.clone());
+        return self;
     }
 
     /// Enables or disables file output for the logger - disabled by default.
@@ -150,9 +152,10 @@ impl Logger {
     /// logger.file(true); // Enable file output
     /// logger.path("/var/log/my_app.log"); // Set the path for file logging
     /// ```
-    pub fn file(&mut self, value: bool) {
+    pub fn file(&mut self, value: bool) -> &mut Self {
         self.file_output = value;
         set_logger(self.clone());
+        return self;
     }
 
     /// Sets the minimum output level for the logger.
@@ -170,9 +173,10 @@ impl Logger {
     /// let mut logger = Logger::new();
     /// logger.level(Level::Warning); // Set the minimum log level to Warning - Info levels will not be logged
     /// ```
-    pub fn level(&mut self, level: Level) {
+    pub fn level(&mut self, level: Level) -> &mut Self {
         self.output_level = level;
         set_logger(self.clone());
+        return self;
     }
 
     /// Adds a level to ignore to the list.
@@ -190,9 +194,10 @@ impl Logger {
     /// let mut logger = Logger::new();
     /// logger.ignore(Level::Warning); // Messages of `Warning` level will be ignored
     /// ```
-    pub fn ignore(&mut self, level: Level) {
+    pub fn ignore(&mut self, level: Level) -> &mut Self {
         self.ignore_levels.push(level);
         set_logger(self.clone());
+        return self;
     }
 
     /// Sets the format string for log messages.
@@ -210,9 +215,10 @@ impl Logger {
     /// let mut logger = Logger::new();
     /// logger.log_format("{timestamp} - {level}: {message}"); // Set a custom format for log messages
     /// ```
-    pub fn log_format(&mut self, format: &str) {
+    pub fn log_format(&mut self, format: &str) -> &mut Self {
         self.log_format = format.to_string();
         set_logger(self.clone());
+        return self;
     }
 
     /// Sets the format string for timestamps within the log.
@@ -232,9 +238,10 @@ impl Logger {
     /// let mut logger = Logger::new();
     /// logger.timestamp_format("%m-%d-%y @%H:%M:%S"); // Set a custom format for timestamp display
     /// ```
-    pub fn timestamp_format(&mut self, format: &str) {
+    pub fn timestamp_format(&mut self, format: &str) -> &mut Self {
         self.timestamp_format = format.to_string();
         set_logger(self.clone());
+        return self;
     }
 }
 
@@ -305,7 +312,7 @@ pub fn log(level: Level, module_path: &str, message: &str) {
     let logger = LOGGER.read().expect("Could not read logger").clone();
 
     //If the level is too low then return
-    if level < logger.output_level {
+    if level < logger.output_level || logger.ignore_levels.contains(&level) {
         return;
     }
 
