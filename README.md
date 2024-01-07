@@ -30,6 +30,14 @@ fn main() {
     error!("This is an error message");
 }
 ```
+Macros to level:
+- Info: `info!()`
+- Debug: `debug!()` [`dbg` was attempted but causes too many issues with other crates]
+- Warning: `warn!()` or `warning!()`
+- Error: `error!()`
+- Critical: `critical!()`
+
+
 Setting up for only file output with specific error levels to be written:
 ```rust
 
