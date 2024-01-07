@@ -1,7 +1,7 @@
 use chrono::prelude::*;
 use lazy_static::lazy_static;
 use std::io::Write;
-use ansi_term::Color;
+use colored::*;
 use fs4::FileExt;
 
 // TODO:
@@ -345,16 +345,16 @@ pub fn log(level: Level, module_path: &str, message: &str) {
         //Set color
         //TODO: make this configurable by the user
         let level_color = match level {
-            Level::Info => Color::Green.normal(),
-            Level::Debug => Color::Blue.normal(),
-            Level::Warning => Color::Yellow.normal(),
-            Level::Error => Color::Red.normal(),
-            Level::Critical => Color::Red.bold(),
-            Level::None => Color::White.normal(), // Retain for addition purposes
+            Level::Info => level.to_string().green(),
+            Level::Debug => level.to_string().blue(),
+            Level::Warning => level.to_string().yellow(),
+            Level::Error => level.to_string().red(),
+            Level::Critical => level.to_string().red().bold(),
+            Level::None => level.to_string().white(), // Retain for addition purposes
         };
 
         //Output-specific level replacement
-        let format = log_format.replace("{level}", &level_color.paint(&level.to_string()));
+        let format = log_format.replace("{level}", &level_color);
 
         //Print to the terminal
         println!("{}", format);
