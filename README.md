@@ -3,18 +3,20 @@
 A simple, lightweight, and easy-to-use logging system. It allows for detailed log messages, configurable output levels, and supports both file and terminal output.
 
 ## Features
-- Easy to set up and use.
-- Supports logging to both the terminal and log files.
-- Customizable log message format.
-- Configurable log levels (Info, Warning, Error, Critical)
+- Easy to set up and use
+- Supports logging to both the terminal and log files
+- Customizable log message format
+- Configurable log levels (Info, Debug, Warning, Error, and Critical)
+- Configurable level display
 - Thread-safe
 
 ## Getting Started
 To start using Logfather, add the following to your `Cargo.toml`:
 ```toml
 [dependencies]
-logfather = "0.1.1"
+logfather = "0.2.0"
 ```
+- Minimum supported Rust version: `1.63.0`
 
 ## Usage
 Quick setup for outputting to terminal:
@@ -41,22 +43,27 @@ fn main() {
     logger.level(Level::Error); // Set the minimum level
 
     info!("This is an info message"); // Will not be written to file
+    debug!("This is a debug message"); // Will not be written to file
     warning!("This is a warning message"); // Will not be written to file
+
     error!("This is an error message"); // Will be written to file
     critical!("This is a critical message"); // Will be written to file
 }
 ```
-Set up for both terminal and file output capturing every level
+Set up for both terminal and file output capturing every level except warning
 ```rust
 
 use logfather::*;
 
 fn main() {
-    let mut logger = Logger::new();
+    let mut logger = Logger::new(); // Terminal output is enabled by default
     logger.file(true); // Enable file output
     logger.path("log.txt"); // Set the path for file logging
+    logger.ignore(Level::Warning); // Set the specific level to ignore
 
-    info!("This is an info message");
+    debug!("This is a debug message");
+    warning!("This is a warning message"); // Will be ignored
+    critical!("This is a critical message");
 }
 ```
 

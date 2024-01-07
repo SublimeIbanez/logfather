@@ -1,6 +1,6 @@
 [package]
 name = "logfather"
-version = "0.1.1"
+version = "0.2.0"
 authors = ["Joshua Benn", "Ryan Mason"]
 description = "A simple and straightforward logging library for Rust."
 license = "MIT"
@@ -12,7 +12,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-ansi_term = "0.12.1"
 chrono = "0.4.31"
+colored = "2.1.0"
 fs4 = "0.7.0"
 lazy_static = "1.4.0"
