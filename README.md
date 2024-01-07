@@ -3,12 +3,12 @@
 A simple, lightweight, and easy-to-use logging system. It allows for detailed log messages, configurable output levels, and supports both file and terminal output.
 
 ## Features
-- Easy to set up and use.
-- Supports logging to both the terminal and log files.
-- Customizable log message format.
-- Configurable log levels (Info, Debug, Warning, Error, and Critical).
-- Configurable level display.
-- Thread-safe.
+- Easy to set up and use
+- Supports logging to both the terminal and log files
+- Customizable log message format
+- Configurable log levels (Info, Debug, Warning, Error, and Critical)
+- Configurable level display
+- Thread-safe
 
 ## Getting Started
 To start using Logfather, add the following to your `Cargo.toml`:
