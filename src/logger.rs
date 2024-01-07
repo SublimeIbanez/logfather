@@ -17,6 +17,7 @@ lazy_static! {
     static ref LOGGER: std::sync::RwLock<Logger> = std::sync::RwLock::new(Logger::new());
 }
 
+
 /// Sets the current Logger struct
 /// - Useful for if the log configuration was saved and reloaded
 pub fn set_logger(new_logger: &Logger) {
@@ -95,7 +96,7 @@ impl Logger {
             path: None,
             terminal_output: true,
             file_output: false,
-            output_level: Level::Info,
+            output_level: Level::Trace,
             ignore: Vec::new(),
             file_ignore: Vec::new(),
             terminal_ignore: Vec::new(),
@@ -352,15 +353,16 @@ pub enum Level {
 
 impl ToString for Level {
     fn to_string(&self) -> String {
-        match self {
-            Level::Trace => String::from("TRACE"),
-            Level::Debug => String::from("DEBUG"),
-            Level::Info => String::from("INFO"),
-            Level::Warning => String::from("WARNING"),
-            Level::Error => String::from("ERROR"),
-            Level::Critical => String::from("CRITICAL"),
-            Level::None => String::from("NONE"),
-        }
+        let value = match self {
+            Level::Trace => "TRACE",
+            Level::Debug => "DEBUG",
+            Level::Info => "INFO",
+            Level::Warning => "WARNING",
+            Level::Error => "ERROR",
+            Level::Critical => "CRITICAL",
+            Level::None => "NONE",
+        };
+        return String::from(value);
     }
 }
 
@@ -383,6 +385,55 @@ impl ToString for Level {
 pub enum TimeZone {
     Local,
     Utc,
+}
+
+pub enum Color {
+    BlackText,
+    RedText,
+    GreenText,
+    YellowText,
+    BlueText,
+    MagentaText,
+    CyanText,
+    WhiteText,
+    BlackHighlight,
+    RedHighlight,
+    GreenHighlight,
+    YellowHighlight,
+    BlueHighlight,
+    MagentaHighlight,
+    CyanHighlight,
+    WhiteHighlight,
+    Reset,
+}
+
+impl Color {
+    pub fn to_string(&self) -> String {
+        let value = match self {
+            Color::BlackText => "\x1b[30m",
+            Color::RedText => "\x1b[31m",
+            Color::GreenText => "\x1b[32m",
+            Color::YellowText => "\x1b[33m",
+            Color::BlueText => "\x1b[34m",
+            Color::MagentaText => "\x1b[35m",
+            Color::CyanText => "\x1b[36m",
+            Color::WhiteText => "\x1b[37m",
+            Color::BlackHighlight => "\x1b[40m",
+            Color::RedHighlight => "\x1b[41m",
+            Color::GreenHighlight => "\x1b[42m",
+            Color::YellowHighlight => "\x1b[43m",
+            Color::BlueHighlight => "\x1b[44m",
+            Color::MagentaHighlight => "\x1b[45m",
+            Color::CyanHighlight => "\x1b[46m",
+            Color::WhiteHighlight => "\x1b[47m",
+            Color::Reset => "\x1b[0m",
+        };
+        return String::from(value);
+    }
+
+    pub fn bold(&self) -> String {
+        return format!("{}{}", "\x1b[1b", self.to_string());
+    }
 }
 
 /// Logs a message with the specified log level and module path.
@@ -457,22 +508,23 @@ pub fn log(level: Level, module_path: &str, message: &str) {
         //Set color
         //TODO: make this configurable by the user
         let level_color = match level {
-            Level::Trace => "\x1b[45m", // No color
-            Level::Debug=> "\x1b[34m", // Blue
-            Level::Info => "\x1b[32m", // Green
-            Level::Warning => "\x1b[33m", // Yellow
-            Level::Error => "\x1b[31m", // Red
-            Level::Critical => "\x1b[1m\x1b[31m", //Bold Red
-            Level::None => "\x1b[37m", // Retain for addition purposes - code that resets the text
+            Level::Trace => Color::WhiteText.to_string(), // No color
+            Level::Debug=> Color::BlueText.to_string(), // Blue
+            Level::Info => Color::GreenText.to_string(), // Green
+            Level::Warning => Color::YellowText.to_string(), // Yellow
+            Level::Error => Color::RedText.to_string(), // Red
+            Level::Critical => Color::RedText.bold(), //Bold Red
+            Level::None => Color::Reset.to_string(), // Retain for addition purposes - code that resets the text
         };
 
         //Output-specific level replacement
         let format = log_format.replace(
-            "{level}", &format!("{}{}{}", level_color, level.to_string(), "\x1b[0m")
+            "{level}", &format!("{}{}{}", level_color, level.to_string(), Color::Reset.to_string())
         );
 
         //Print to the terminal
         println!("{}", format);
+
     }
 }
 
