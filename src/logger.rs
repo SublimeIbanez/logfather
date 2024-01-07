@@ -470,6 +470,24 @@ macro_rules! warning {
     };
 }
 
+/// Logs a warning message.
+///
+/// # Example
+///
+/// ``` no_run
+/// use logfather::*;
+///
+/// warn!("This is a warning message");
+/// ```
+///
+/// This macro simplifies the process of logging a message at the `Warning` level.
+#[macro_export]
+macro_rules! warn {
+    ($message:expr) => {
+        log(Level::Warning, module_path!(), $message);
+    };
+}
+
 /// Logs an error message.
 ///
 /// # Example
