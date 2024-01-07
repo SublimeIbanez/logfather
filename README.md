@@ -19,6 +19,13 @@ logfather = "0.2.2"
 - Minimum supported Rust version: `1.63.0`
 
 ## Usage
+Macros:
+- <b>Info:</b> `info!()`
+- <b>Debug:</b> `debug!()` [`dbg!()` was used but conflicts with other crates]
+- <b>Warning:</b> `warn!()` or `warning!()`
+- <b>Error:</b> `error!()`
+- <b>Critical:</b> `critical!()`
+
 Quick setup for outputting to terminal:
 ```rust
 
@@ -30,12 +37,6 @@ fn main() {
     error!("This is an error message");
 }
 ```
-Macros to level:
-- Info: `info!()`
-- Debug: `debug!()` [`dbg` was attempted but causes too many issues with other crates]
-- Warning: `warn!()` or `warning!()`
-- Error: `error!()`
-- Critical: `critical!()`
 
 
 Setting up for only file output with specific error levels to be written:
