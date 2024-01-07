@@ -10,28 +10,30 @@ use fs4::FileExt;
 // 2. Optimize performance for high-throughput logging
 //    - Explore asynchronous logging
 //    - Investigate file buffering
-// 3. Add configurable timestamp formats
-// 4. Conduct comprehensive testing
+// 3. Conduct comprehensive testing
 //    - Focus on concurrency and file writing
 //    - Test log filtering behavior under various configurations
 
 lazy_static! {
-    static ref LOGGER: std::sync::RwLock<Logger> = std::sync::RwLock::new(Logger::new());
+    static ref LOGFATHER: std::sync::RwLock<Logfather> = std::sync::RwLock::new(Logfather::new());
 }
 
-pub fn set_logger(new_logger: Logger) {
-    let mut logger = LOGGER.write().expect("Could not access the logger");
-    *logger = new_logger;
+/// Sets the current Logfather struct
+/// - Useful for if the log configuration was saved and reloaded
+pub fn set_logfather(new_logfather: Logfather) {
+    let mut logfather = LOGFATHER.write().expect("Could not access the logfather");
+    *logfather = new_logfather;
 }
 
-/// `Logger` is a struct that encapsulates the configuration for the logging system.
+/// `Logfather` is a struct that encapsulates the configuration for the logging system.
 ///
 /// # Fields
 /// - `path`: Optional path to the log file. If set, log messages will be written to this file.
 /// - `terminal_output`: Boolean flag to enable or disable logging to the terminal.
 /// - `file_output`: Boolean flag to enable or disable logging to a file.
 /// - `output_level`: Minimum level of log messages to output. Messages below this level will be ignored.
-/// - `format`: The format string for log messages. Placeholders like `{timestamp}`, `{module_path}`, `{level}`, and `{message}` will be replaced with actual values.
+/// - `log_format`: The format string for log messages. Placeholders like `{timestamp}`, `{module_path}`, `{level}`, and `{message}` will be replaced with actual values.
+/// - `timestampt_format`: The format string for time display. Placeholders like `%y`, `%m`, `%d`, `%H`, `%M`, and `%S` will be replaced with actual values.
 ///
 /// # Examples
 ///
@@ -40,43 +42,44 @@ pub fn set_logger(new_logger: Logger) {
 /// ``` no_run
 /// use logfather::*;
 ///
-/// let mut logger = Logger::new();
-/// logger.terminal(true); // Enable terminal output
-/// logger.file(true); // Enable file output
-/// logger.path("log.txt"); // Set the path for file logging
-/// logger.level(Level::Info); // Set the minimum log level to Info
-/// logger.log_format("[{timestamp} {level}] {message}"); // Set a custom format for log messages
+/// let mut logfather = Logfather::new();
+/// logfather.terminal(true); // Enable terminal output
+/// logfather.file(true); // Enable file output
+/// logfather.path("log.txt"); // Set the path for file logging
+/// logfather.level(Level::Info); // Set the minimum log level to Info
+/// logfather.log_format("[{timestamp} {level}] {message}"); // Set a custom format for log messages
+/// logfather.timestamp_format("%Y-%m-%d %H:%M:%S"); // Set a custom format for timestamps
 /// ```
 #[derive(Clone)]
-pub struct Logger {
+pub struct Logfather {
     pub path: Option<String>,
     pub terminal_output: bool,
     pub file_output: bool,
     pub output_level: Level,
     pub log_format: String,
+    pub timestamp_format: String,
     //TODO: add other fields
-    //pub timestamp_format: String,
 }
 
-impl Logger {
-    /// Constructs a new `Logger` instance with default settings.
+impl Logfather {
+    /// Constructs a new `Logfather` instance with default settings.
     ///
-    /// By default, the logger is configured to:
+    /// By default, the logfather is configured to:
     /// - Have no file path (no file logging).
     /// - Enable terminal output.
     /// - Disable file output.
     /// - Set the log level to `Info`.
-    /// - Use a default format string for log messages.
+    /// - Use a default format string for log messages and timestamps.
     ///
     /// # Returns
-    /// Returns a `Logger` instance with default settings.
+    /// Returns a `Logfather` instance with default settings.
     ///
     /// # Examples
     ///
     /// ``` no_run
     /// use logfather::*;
     ///
-    /// let logger = Logger::new();
+    /// let logfather = Logfather::new();
     /// ```
     pub fn new() -> Self {
         Self {
@@ -84,13 +87,14 @@ impl Logger {
             terminal_output: true,
             file_output: false,
             output_level: Level::Info,
-            log_format: String::from("[{timestamp} {module_path}] {level}: {message}")
+            log_format: String::from("[{timestamp} {module_path}] {level}: {message}"),
+            timestamp_format: String::from("%Y-%m-%d %H:%M:%S"),
         }
     }
 
-    /// Sets the file path for the logger.
+    /// Sets the file path for the logfather.
     ///
-    /// If a path is set, the logger will write log messages to the specified file provided `file_output` is active.
+    /// If a path is set, the logfather will write log messages to the specified file provided `file_output` is active.
     ///
     /// # Arguments
     /// * `path` - A string slice that holds the path to the log file.
@@ -100,15 +104,15 @@ impl Logger {
     /// ``` no_run
     /// use logfather::*;
     ///
-    /// let mut logger = Logger::new();
-    /// logger.path("/var/log/my_app.log");
+    /// let mut logfather = Logfather::new();
+    /// logfather.path("/var/log/my_app.log");
     /// ```
     pub fn path(&mut self, path: &str) {
         self.path = Some(path.to_string());
-        set_logger(self.clone());
+        set_logfather(self.clone());
     }
 
-    /// Enables or disables terminal output for the logger - enabled by default.
+    /// Enables or disables terminal output for the logfather - enabled by default.
     ///
     /// # Arguments
     /// * `value` - A boolean value where `true` enables terminal output and `false` disables it.
@@ -118,15 +122,15 @@ impl Logger {
     /// ``` no_run
     /// use logfather::*;
     ///
-    /// let mut logger = Logger::new();
-    /// logger.terminal(false); // Disable terminal output
+    /// let mut logfather = Logfather::new();
+    /// logfather.terminal(false); // Disable terminal output
     /// ```
     pub fn terminal(&mut self, value: bool) {
         self.terminal_output = value;
-        set_logger(self.clone());
+        set_logfather(self.clone());
     }
 
-    /// Enables or disables file output for the logger - disabled by default.
+    /// Enables or disables file output for the logfather - disabled by default.
     ///
     /// Note: File output is only active if a file path is set.
     ///
@@ -138,16 +142,16 @@ impl Logger {
     /// ``` no_run
     /// use logfather::*;
     ///
-    /// let mut logger = Logger::new();
-    /// logger.file(true); // Enable file output
-    /// logger.path("/var/log/my_app.log"); // Set the path for file logging
+    /// let mut logfather = Logfather::new();
+    /// logfather.file(true); // Enable file output
+    /// logfather.path("/var/log/my_app.log"); // Set the path for file logging
     /// ```
     pub fn file(&mut self, value: bool) {
         self.file_output = value;
-        set_logger(self.clone());
+        set_logfather(self.clone());
     }
 
-    /// Sets the minimum output level for the logger.
+    /// Sets the minimum output level for the logfather.
     ///
     /// Log messages below this level will be ignored.
     ///
@@ -159,12 +163,12 @@ impl Logger {
     /// ``` no_run
     /// use logfather::*;
     ///
-    /// let mut logger = Logger::new();
-    /// logger.level(Level::Warning); // Set the minimum log level to Warning - Info levels will not be logged
+    /// let mut logfather = Logfather::new();
+    /// logfather.level(Level::Warning); // Set the minimum log level to Warning - Info levels will not be logged
     /// ```
     pub fn level(&mut self, level: Level) {
         self.output_level = level;
-        set_logger(self.clone());
+        set_logfather(self.clone());
     }
 
     /// Sets the format string for log messages.
@@ -179,12 +183,34 @@ impl Logger {
     /// ``` no_run
     /// use logfather::*;
     ///
-    /// let mut logger = Logger::new();
-    /// logger.log_format("{timestamp} - {level}: {message}"); // Set a custom format for log messages
+    /// let mut logfather = Logfather::new();
+    /// logfather.log_format("{timestamp} - {level}: {message}"); // Set a custom format for log messages
     /// ```
     pub fn log_format(&mut self, format: &str) {
         self.log_format = format.to_string();
-        set_logger(self.clone());
+        set_logfather(self.clone());
+    }
+
+    /// Sets the format string for timestamps within the log.
+    ///
+    /// The format string can contain placeholders like:
+    /// - `%y`, `%m`, `%d` for year, month, and day, respectively.
+    /// - `%H`, `%M`, `%S` for hour, minute, and second, respectively.
+    ///
+    /// # Arguments
+    /// * `format` - A string slice representing the timestamp format.
+    ///
+    /// # Examples
+    ///
+    /// ``` no_run
+    /// use logfather::*;
+    ///
+    /// let mut logfather = Logfather::new();
+    /// logfather.timestamp_format("%m-%d-%y @%H:%M:%S"); // Set a custom format for timestamp display
+    /// ```
+    pub fn timestamp_format(&mut self, format: &str) {
+        self.timestamp_format = format.to_string();
+        set_logfather(self.clone());
     }
 }
 
@@ -203,9 +229,9 @@ impl Logger {
 /// ``` no_run
 /// use logfather::*;
 ///
-/// // Using `Level` to set the minimum output level of the logger
-/// let mut logger = Logger::new();
-/// logger.level(Level::Error); // Only log errors and critical messages
+/// // Using `Level` to set the minimum output level of the logfather
+/// let mut logfather = Logfather::new();
+/// logfather.level(Level::Error); // Only log errors and critical messages
 /// ```
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Level {
@@ -230,7 +256,7 @@ impl ToString for Level {
 
 /// Logs a message with the specified log level and module path.
 ///
-/// The log message is formatted according to the logger's configuration and output to the designated targets (file and/or terminal).
+/// The log message is formatted according to the logfather's configuration and output to the designated targets (file and/or terminal).
 ///
 /// # Arguments
 /// * `level` - The severity level of the log message.
@@ -248,28 +274,28 @@ impl ToString for Level {
 ///
 /// Note: In practice, prefer using the provided macros (`info!`, `warning!`, `error!`, `critical!`) for logging.
 pub fn log(level: Level, module_path: &str, message: &str) {
-    //Grab a clone of the logger to not hold up any other potential logging threads
-    let logger = LOGGER.read().expect("Could not read logger").clone();
+    //Grab a clone of the logfather to not hold up any other potential logging threads
+    let logfather = LOGFATHER.read().expect("Could not read logfather").clone();
 
     //If the level is too low then return
-    if level < logger.output_level {
+    if level < logfather.output_level {
         return;
     }
 
     //Get the time
     let now = Local::now();
-    let time = now.format("%Y-%m-%d %H:%M:%S").to_string();
+    let time = now.format(&logfather.timestamp_format).to_string();
 
     //Replace the relevant sections in the format
-    let log_format = logger.log_format
+    let log_format = logfather.log_format
         .replace("{timestamp}", &time)
         .replace("{module_path}", module_path)
         .replace("{message}", message);
 
     //Only write to the file if both of these are true
-    if logger.path.is_some() && logger.file_output {
+    if logfather.path.is_some() && logfather.file_output {
         //Can safely unwrap
-        let path = logger.path.unwrap();
+        let path = logfather.path.unwrap();
 
         let mut file = std::fs::OpenOptions::new()
             .read(true)
@@ -288,7 +314,7 @@ pub fn log(level: Level, module_path: &str, message: &str) {
     }
 
     //Terminal output
-    if logger.terminal_output {
+    if logfather.terminal_output {
         //Set color
         //TODO: make this configurable by the user
         let level_color = match level {
@@ -380,39 +406,41 @@ macro_rules! critical {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs::{self, File};
+    use std::io::{Read, Write};
 
     #[test]
     fn test_level_filtering() {
-        let mut logger = Logger::new();
-        logger.level(Level::Error); //Error as basis
+        let mut logfather = Logfather::new();
+        logfather.level(Level::Error); //Error as basis
 
         //Test levels below
-        assert!(Level::Info < logger.output_level);
-        assert!(Level::Warning < logger.output_level);
+        assert!(Level::Info < logfather.output_level);
+        assert!(Level::Warning < logfather.output_level);
 
         //Test levels above
-        assert!(Level::Error >= logger.output_level);
-        assert!(Level::Critical >= logger.output_level);
+        assert!(Level::Error >= logfather.output_level);
+        assert!(Level::Critical >= logfather.output_level);
     }
 
     #[test]
     fn test_level_none() {
-        let mut logger = Logger::new();
-        logger.level(Level::None); //Set to None
+        let mut logfather = Logfather::new();
+        logfather.level(Level::None); //Set to None
 
         //Test levels below
-        assert!(Level::Info < logger.output_level);
-        assert!(Level::Warning < logger.output_level);
-        assert!(Level::Error < logger.output_level);
-        assert!(Level::Critical < logger.output_level);
+        assert!(Level::Info < logfather.output_level);
+        assert!(Level::Warning < logfather.output_level);
+        assert!(Level::Error < logfather.output_level);
+        assert!(Level::Critical < logfather.output_level);
     }
 
     #[test]
     fn test_log_format() {
-        let mut logger = Logger::new();
-        logger.log_format("{level} - {message}");
+        let mut logfather = Logfather::new();
+        logfather.log_format("{level} - {message}");
 
-        let formatted_message = logger.log_format
+        let formatted_message = logfather.log_format
             .replace("{level}", "INFO")
             .replace("{message}", "Test message");
 
@@ -421,19 +449,64 @@ mod tests {
 
     #[test]
     fn test_file_output() {
-        let mut logger = Logger::new();
+        let mut logfather = Logfather::new();
         let test_file_path = "test_log.txt";
+
+        // Enable file output and set file path
+        logfather.file(true);
+        logfather.path(test_file_path);
+
+        // Log a message
+        log(Level::Info, "test_file_output", "Test log message for file output");
         
-        logger.file(true); //Enable file output
-        logger.path(test_file_path); //Set test file path
+        // Verify that file contains the logged message
+        let mut file = File::open(test_file_path).expect("Failed to open log file");
+        let mut contents = String::new();
+        file.read_to_string(&mut contents).expect("Failed to read log file");
+        assert!(contents.contains("Test log message for file output"), "Log message not found in file");
 
-        log(Level::Info, "tests::test_file_output", "This is a test log message");
+        // Clean up: remove the test log file
+        fs::remove_file(test_file_path).expect("Failed to delete test log file");
 
-        // Read the file and check if it contains the test log message
-        let file_content = std::fs::read_to_string(test_file_path).expect("Failed to read log file");
-        assert!(file_content.contains("This is a test log message"));
+        // Disable file output and attempt to log another message
+        logfather.file(false);
+        log(Level::Info, "test_file_output", "Second test message for file output");
 
-        // Clean up: Remove the test log file after the test
-        std::fs::remove_file(test_file_path).expect("Failed to delete test log file");
+        // Verify that no file is created or written to
+        assert!(!fs::metadata(test_file_path).is_ok(), "Log file should not exist when file output is disabled");
+    }
+
+    #[test]
+    fn test_log_level_filtering() {
+        let mut logfather = Logfather::new();
+        let test_file_path = "test_log_level.txt";
+
+        let _ = fs::remove_file(test_file_path);
+
+        // Set file output and path
+        logfather.file(true);
+        logfather.path(test_file_path);
+
+        // Set log level to Warning and log an Info message (should not be logged)
+        logfather.level(Level::Warning);
+        log(Level::Info, "test_log_level_filtering", "Info level message");
+        
+        // Verify that the Info message is not in the file
+        let mut file = File::open(test_file_path).unwrap();
+        let mut contents = String::new();
+        file.read_to_string(&mut contents).unwrap();
+        assert!(!contents.contains("Info level message"), "Info level message should not be logged");
+
+        // Log a Warning message (should be logged)
+        log(Level::Warning, "test_log_level_filtering", "Warning level message");
+
+        // Read file again and check for the Warning message
+        file = File::open(test_file_path).unwrap();
+        contents.clear();
+        file.read_to_string(&mut contents).unwrap();
+        assert!(contents.contains("Warning level message"), "Warning level message should be logged");
+
+        // Clean up: remove the test log file
+        fs::remove_file(test_file_path).expect("Failed to delete test log file");
     }
 }
