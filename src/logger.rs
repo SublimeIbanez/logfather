@@ -32,6 +32,7 @@ pub fn set_logger(new_logger: Logger) {
 /// - `terminal_output`: Boolean flag to enable or disable logging to the terminal.
 /// - `file_output`: Boolean flag to enable or disable logging to a file.
 /// - `output_level`: Minimum level of log messages to output. Messages below this level will be ignored.
+/// - `ignore_levels`: List of log levels to ignore - more granular than output_level.
 /// - `log_format`: The format string for log messages. Placeholders like `{timestamp}`, `{module_path}`, `{level}`, and `{message}` will be replaced with actual values.
 /// - `timestampt_format`: The format string for time display. Placeholders like `%y`, `%m`, `%d`, `%H`, `%M`, and `%S` will be replaced with actual values.
 ///
@@ -47,6 +48,7 @@ pub fn set_logger(new_logger: Logger) {
 /// logger.file(true); // Enable file output
 /// logger.path("log.txt"); // Set the path for file logging
 /// logger.level(Level::Info); // Set the minimum log level to Info
+/// logger.ignore(Level::Error); // Ignore the Error level messages
 /// logger.log_format("[{timestamp} {level}] {message}"); // Set a custom format for log messages
 /// logger.timestamp_format("%Y-%m-%d %H:%M:%S"); // Set a custom format for timestamps
 /// ```
@@ -56,6 +58,7 @@ pub struct Logger {
     pub terminal_output: bool,
     pub file_output: bool,
     pub output_level: Level,
+    pub ignore_levels: Vec<Level>,
     pub log_format: String,
     pub timestamp_format: String,
     //TODO: add other fields
@@ -87,6 +90,7 @@ impl Logger {
             terminal_output: true,
             file_output: false,
             output_level: Level::Info,
+            ignore_levels: Vec::new(),
             log_format: String::from("[{timestamp} {module_path}] {level}: {message}"),
             timestamp_format: String::from("%Y-%m-%d %H:%M:%S"),
         }
@@ -171,6 +175,26 @@ impl Logger {
         set_logger(self.clone());
     }
 
+    /// Adds a level to ignore to the list.
+    ///
+    /// Log messages of this level will be ignored.
+    ///
+    /// # Arguments
+    /// * `level` - The `Level` of log messages to be ignored.
+    ///
+    /// # Examples
+    ///
+    /// ``` no_run
+    /// use logfather::*;
+    ///
+    /// let mut logger = Logger::new();
+    /// logger.ignore(Level::Warning); // Messages of `Warning` level will be ignored
+    /// ```
+    pub fn ignore(&mut self, level: Level) {
+        self.ignore_levels.push(level);
+        set_logger(self.clone());
+    }
+
     /// Sets the format string for log messages.
     ///
     /// The format string can contain placeholders like `{timestamp}`, `{module_path}`, `{level}`, and `{message}` which will be replaced with actual values during logging.
@@ -236,16 +260,18 @@ impl Logger {
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Level {
     Info = 0,
-    Warning = 1,
-    Error = 2,
-    Critical = 3,
-    None = 4,
+    Debug = 1,
+    Warning = 2,
+    Error = 3,
+    Critical = 4,
+    None = 255,
 }
 
 impl ToString for Level {
     fn to_string(&self) -> String {
         match self {
             Level::Info => String::from("INFO"),
+            Level::Debug => String::from("DEBUG"),
             Level::Warning => String::from("WARNING"),
             Level::Error => String::from("ERROR"),
             Level::Critical => String::from("CRITICAL"),
@@ -319,10 +345,11 @@ pub fn log(level: Level, module_path: &str, message: &str) {
         //TODO: make this configurable by the user
         let level_color = match level {
             Level::Info => Color::Green.normal(),
+            Level::Debug => Color::Blue.normal(),
             Level::Warning => Color::Yellow.normal(),
             Level::Error => Color::Red.normal(),
             Level::Critical => Color::Red.bold(),
-            Level::None => Color::White.normal(),
+            Level::None => Color::White.normal(), // Retain for addition purposes
         };
 
         //Output-specific level replacement
@@ -346,6 +373,22 @@ pub fn log(level: Level, module_path: &str, message: &str) {
 macro_rules! info {
     ($message:expr) => {
         log(Level::Info, module_path!(), $message);
+    };
+}
+
+/// Logs a message for debugging.
+///
+/// # Example
+///
+/// ``` no_run
+/// use logfather::*;
+///
+/// debug!("This is a debug message");
+/// ```
+#[macro_export]
+macro_rules! debug {
+    ($message:expr) => {
+        log(Level::Debug, module_path!(), $message);
     };
 }
 
@@ -407,7 +450,7 @@ macro_rules! critical {
 mod tests {
     use super::*;
     use std::fs::{self, File};
-    use std::io::{Read, Write};
+    use std::io::Read;
 
     #[test]
     fn test_level_filtering() {
