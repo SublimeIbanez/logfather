@@ -153,6 +153,7 @@ dependencies = [
  "chrono",
  "fs4",
  "lazy_static",
+ "simplicio",
 ]
 
 [[package]]
@@ -200,6 +201,12 @@ dependencies = [
  "linux-raw-sys",
  "windows-sys 0.52.0",
 ]
+
+[[package]]
+name = "simplicio"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2fd9a131996b12c59b91866a050921a46515beaa80104b3f1551bc028aa90852"
 
 [[package]]
 name = "syn"

@@ -1,5 +1,6 @@
 use chrono::{prelude::Local, Utc};
 use lazy_static::lazy_static;
+use simplicio::*;
 use std::io::Write;
 use fs4::FileExt;
 
@@ -37,6 +38,7 @@ pub fn set_logger(new_logger: &Logger) {
 /// - `terminal_ignore`: List of log levels that terminal output ignores.
 /// - `log_format`: The format string for log messages. Placeholders like `{timestamp}`, `{module_path}`, `{level}`, and `{message}` will be replaced with actual values.
 /// - `timestampt_format`: The format string for time display. Placeholders like `%y`, `%m`, `%d`, `%H`, `%M`, and `%S` will be replaced with actual values.
+/// - `color_set`: HashMap relating a `Level` to a `ColorSet` for terminal output customization.
 ///
 /// # Examples
 ///
@@ -55,6 +57,9 @@ pub fn set_logger(new_logger: &Logger) {
 /// logger.terminal_ignore(Level::Error); //Ignores the Error level messages for terminal output
 /// logger.log_format("[{timestamp} {level}] {message}"); // Set a custom format for log messages
 /// logger.timestamp_format("%Y-%m-%d %H:%M:%S"); // Set a custom format for timestamps
+/// logger.color(Level::Info, TextColor::Green); // Set the text color for INFO to Green in terminal output
+/// logger.style(Level::Info, TextStyle::Underline); // Set the style for INFO to Underlined in terminal output
+/// logger.background(Level::Info, BackgroundColor::Magenta); // Set the background color for INFO to Magenta in terminal output
 /// ```
 #[derive(Clone)]
 pub struct Logger {
@@ -68,6 +73,7 @@ pub struct Logger {
     pub(crate) log_format: String,
     pub(crate) timezone: TimeZone,
     pub(crate) timestamp_format: String,
+    pub(crate) color_set: std::collections::HashMap<Level, ColorSet>,
     //TODO: add other fields
 }
 
@@ -103,6 +109,15 @@ impl Logger {
             log_format: String::from("[{timestamp} {level} {module_path}] {message}"),
             timezone: TimeZone::Local,
             timestamp_format: String::from("%Y-%m-%d %H:%M:%S"),
+            color_set: map!(
+                Level::Trace => ColorSet::new(TextStyle::Normal, TextColor::Magenta),
+                Level::Debug => ColorSet::new(TextStyle::Normal, TextColor::Blue),
+                Level::Info => ColorSet::new(TextStyle::Normal, TextColor::Green),
+                Level::Warning => ColorSet::new(TextStyle::Normal, TextColor::Yellow),
+                Level::Error => ColorSet::new(TextStyle::Normal, TextColor::Red),
+                Level::Critical => ColorSet::new(TextStyle::Bold, TextColor::Red),
+                Level::None => ColorSet::new(TextStyle::Normal, TextColor::Reset)
+            ),
         }
     }
 
@@ -314,6 +329,69 @@ impl Logger {
         set_logger(self);
         return self.to_owned();
     }
+
+    /// Sets the preferred text color for Level in terminal output.
+    ///
+    /// # Arguments
+    /// * `level` - The Level being modified
+    /// * `color` - The preferred color
+    ///
+    /// # Examples
+    ///
+    /// ``` no_run
+    /// use logfather::*;
+    ///
+    /// let mut logger = Logger::new();
+    /// logger.color(Level::Info, TextColor::Blue); 
+    /// ```
+    pub fn color(&mut self, level: Level, color: TextColor) -> Self {
+        let color_set = self.color_set.get_mut(&level).unwrap();
+        color_set.text = color;
+        set_logger(&self);
+        return self.to_owned();
+    }
+
+    /// Sets the preferred text style for Level in terminal output.
+    ///
+    /// # Arguments
+    /// * `level` - The Level being modified
+    /// * `style` - The preferred style
+    ///
+    /// # Examples
+    ///
+    /// ``` no_run
+    /// use logfather::*;
+    ///
+    /// let mut logger = Logger::new();
+    /// logger.style(Level::Info, TextStyle::Bold); 
+    /// ```
+    pub fn style(&mut self, level: Level, style: TextStyle) -> Self {
+        let color_set = self.color_set.get_mut(&level).unwrap();
+        color_set.style = style;
+        set_logger(&self);
+        return self.to_owned();
+    }
+
+    /// Sets the preferred text color for Level in terminal output.
+    ///
+    /// # Arguments
+    /// * `level` - The Level being modified
+    /// * `background` - The preferred background color for the Level
+    ///
+    /// # Examples
+    ///
+    /// ``` no_run
+    /// use logfather::*;
+    ///
+    /// let mut logger = Logger::new();
+    /// logger.background(Level::Info, BackgroundColor::Blue); 
+    /// ```
+    pub fn background(&mut self, level: Level, background: BackgroundColor) -> Self {
+        let color_set = self.color_set.get_mut(&level).unwrap();
+        color_set.background = background;
+        set_logger(&self);
+        return self.to_owned();
+    }
 }
 
 /// Represents the severity level of a log message.
@@ -340,7 +418,7 @@ impl Logger {
 /// let mut logger = Logger::new();
 /// logger.level(Level::Error); // Only log errors and critical messages
 /// ```
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Level {
     Trace = 0,
     Debug = 1,
@@ -353,7 +431,7 @@ pub enum Level {
 
 impl ToString for Level {
     fn to_string(&self) -> String {
-        let value = match self {
+        return s!(match self {
             Level::Trace => "TRACE",
             Level::Debug => "DEBUG",
             Level::Info => "INFO",
@@ -361,8 +439,7 @@ impl ToString for Level {
             Level::Error => "ERROR",
             Level::Critical => "CRITICAL",
             Level::None => "NONE",
-        };
-        return String::from(value);
+        });
     }
 }
 
@@ -387,52 +464,151 @@ pub enum TimeZone {
     Utc,
 }
 
-pub enum Color {
-    BlackText,
-    RedText,
-    GreenText,
-    YellowText,
-    BlueText,
-    MagentaText,
-    CyanText,
-    WhiteText,
-    BlackHighlight,
-    RedHighlight,
-    GreenHighlight,
-    YellowHighlight,
-    BlueHighlight,
-    MagentaHighlight,
-    CyanHighlight,
-    WhiteHighlight,
+/// Enum representing available text colors for terminal output.
+///
+/// This is used to customize the color of Level text in log messages when displayed in the terminal.
+///
+/// # Variants
+/// Each variant corresponds to a standard terminal color.
+/// - `Black`, `Red`, `Green`, `Yellow`, `Blue`, `Magenta`, `Cyan`, `White`, `Reset`
+///
+/// # Examples
+///
+/// ``` no_run
+/// use logfather::*;
+///
+/// let text_color = TextColor::Blue;
+/// ```
+#[derive(Clone)]
+pub enum TextColor {
+    Black,
+    Red,
+    Green,
+    Yellow,
+    Blue,
+    Magenta,
+    Cyan,
+    White,
     Reset,
 }
 
-impl Color {
-    pub fn to_string(&self) -> String {
-        let value = match self {
-            Color::BlackText => "\x1b[30m",
-            Color::RedText => "\x1b[31m",
-            Color::GreenText => "\x1b[32m",
-            Color::YellowText => "\x1b[33m",
-            Color::BlueText => "\x1b[34m",
-            Color::MagentaText => "\x1b[35m",
-            Color::CyanText => "\x1b[36m",
-            Color::WhiteText => "\x1b[37m",
-            Color::BlackHighlight => "\x1b[40m",
-            Color::RedHighlight => "\x1b[41m",
-            Color::GreenHighlight => "\x1b[42m",
-            Color::YellowHighlight => "\x1b[43m",
-            Color::BlueHighlight => "\x1b[44m",
-            Color::MagentaHighlight => "\x1b[45m",
-            Color::CyanHighlight => "\x1b[46m",
-            Color::WhiteHighlight => "\x1b[47m",
-            Color::Reset => "\x1b[0m",
-        };
-        return String::from(value);
+impl std::fmt::Display for TextColor {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            TextColor::Black => write!(f, "\x1b[30m"),
+            TextColor::Red => write!(f, "\x1b[31m"),
+            TextColor::Green => write!(f, "\x1b[32m"),
+            TextColor::Yellow => write!(f, "\x1b[33m"),
+            TextColor::Blue => write!(f, "\x1b[34m"),
+            TextColor::Magenta => write!(f, "\x1b[35m"),
+            TextColor::Cyan => write!(f, "\x1b[36m"),
+            TextColor::White => write!(f, "\x1b[37m"),
+            TextColor::Reset => write!(f, "\x1b[0m"),
+        }
     }
+}
 
-    pub fn bold(&self) -> String {
-        return format!("{}{}", "\x1b[1m", self.to_string());
+/// Enum representing available background colors for terminal output.
+///
+/// This is used to customize the background color of log messages when displayed in the terminal.
+///
+/// # Variants
+/// Each variant corresponds to a standard terminal background color.
+/// - `Black`, `Red`, `Green`, `Yellow`, `Blue`, `Magenta`, `Cyan`, `White`, `Reset`
+///
+/// # Examples
+///
+/// ``` no_run
+/// use logfather::*;
+///
+/// let background_color = BackgroundColor::Green;
+/// ```
+#[derive(Clone)]
+pub enum BackgroundColor {
+    Black,
+    Red,
+    Green,
+    Yellow,
+    Blue,
+    Magenta,
+    Cyan,
+    White,
+}
+
+impl std::fmt::Display for BackgroundColor {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            BackgroundColor::Black => write!(f, "\x1b[40m"),
+            BackgroundColor::Red => write!(f, "\x1b[41m"),
+            BackgroundColor::Green => write!(f, "\x1b[42m"),
+            BackgroundColor::Yellow => write!(f, "\x1b[43m"),
+            BackgroundColor::Blue => write!(f, "\x1b[44m"),
+            BackgroundColor::Magenta => write!(f, "\x1b[45m"),
+            BackgroundColor::Cyan => write!(f, "\x1b[46m"),
+            BackgroundColor::White => write!(f, "\x1b[47m"),
+        }
+    }
+}
+
+/// Enum representing available text styles for terminal output.
+///
+/// This is used to customize the style of text in log messages when displayed in the terminal.
+///
+/// # Variants
+/// - `Normal`: Default text style with no additional formatting.
+/// - `Bold`: Bold text style.
+/// - `Italic`: Italic text style.
+/// - `Underline`: Underlined text style.
+///
+/// # Examples
+///
+/// ``` no_run
+/// use logfather::*;
+///
+/// let text_style = TextStyle::Bold;
+/// ```
+#[derive(Clone)]
+pub enum TextStyle {
+    Normal,
+    Bold,
+    Italic,
+    Underline,
+}
+
+impl std::fmt::Display for TextStyle {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            TextStyle::Normal => write!(f, "\x1b[0m"),
+            TextStyle::Bold => write!(f, "\x1b[1m"),
+            TextStyle::Italic => write!(f, "\x1b[3m"),
+            TextStyle::Underline => write!(f, "\x1b[4m"),
+        }
+    }
+}
+
+/// A struct representing text style, text color, and background color for a specific log level.
+///
+/// This struct is used to customize the appearance of log messages in the terminal.
+///
+/// # Fields
+/// - `style`: The text style (e.g., normal, bold, italic, underline).
+/// - `text`: The text color.
+/// - `background`: The background color.
+///
+#[derive(Clone)]
+pub(crate) struct ColorSet {
+    pub(crate) style: TextStyle,
+    pub(crate) text: TextColor,
+    pub(crate) background: BackgroundColor,
+}
+
+impl ColorSet {
+    pub(crate) fn new(style: TextStyle, text: TextColor) -> Self {
+        Self {
+            style,
+            text,
+            background: BackgroundColor::Black,
+        }
     }
 }
 
@@ -506,20 +682,16 @@ pub fn log(level: Level, module_path: &str, message: &str) {
     //Terminal output
     if logger.terminal_output && !logger.terminal_ignore.contains(&level) {
         //Set color
-        //TODO: make this configurable by the user
-        let level_color = match level {
-            Level::Trace => Color::WhiteText.to_string(), // No color
-            Level::Debug=> Color::BlueText.to_string(), // Blue
-            Level::Info => Color::GreenText.to_string(), // Green
-            Level::Warning => Color::YellowText.to_string(), // Yellow
-            Level::Error => Color::RedText.to_string(), // Red
-            Level::Critical => Color::RedText.bold(), //Bold Red
-            Level::None => Color::Reset.to_string(), // Retain for addition purposes - code that resets the text
-        };
+        let color_set = logger.color_set.get(&level).unwrap();
+        let level_output = cnct!(
+            color_set.style.to_string(), 
+            color_set.background.to_string(),
+            color_set.text.to_string()
+        );
 
         //Output-specific level replacement
         let format = log_format.replace(
-            "{level}", &format!("{}{}{}", level_color, level.to_string(), Color::Reset.to_string())
+            "{level}", &format!("{}{}{}", level_output, level.to_string(), TextColor::Reset.to_string())
         );
 
         //Print to the terminal
