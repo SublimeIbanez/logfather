@@ -2,7 +2,6 @@ use chrono::{prelude::Local, Utc};
 use lazy_static::lazy_static;
 use simplicio::*;
 use std::io::Write;
-use fs4::FileExt;
 
 // TODO:
 // 1. Implement advanced error handling for file operations
@@ -663,7 +662,7 @@ pub fn log(level: Level, module_path: &str, message: &str) {
         //Can safely unwrap
         let path = logger.path.unwrap();
 
-        let mut file = std::fs::OpenOptions::new()
+        let file = std::fs::OpenOptions::new()
             .read(true)
             .append(true)
             .create(true)
@@ -674,9 +673,11 @@ pub fn log(level: Level, module_path: &str, message: &str) {
         let format = log_format.replace("{level}", &level.to_string());
 
         //Lock down the file while it's being written to in case multithreaded application
-        file.lock_exclusive().expect("Could not lock file for logging");
-        match writeln!(file, "{}", format) { _ => () }  //Silent error handling 
-        file.unlock().expect("Could not unlock file after writing");
+        let file_mutex = std::sync::Mutex::new(file);
+        {
+            let mut file = file_mutex.lock().unwrap();
+            match writeln!(file, "{}", format) { _ => () }  //Silent error handling 
+        }
     }
 
     //Terminal output

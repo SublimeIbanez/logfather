@@ -13,6 +13,5 @@ edition = "2021"
 
 [dependencies]
 chrono = "0.4.31"
-fs4 = "0.7.0"
 lazy_static = "1.4.0"
 simplicio = "0.1.1"
