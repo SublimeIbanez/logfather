@@ -1,8 +1,7 @@
-use chrono::prelude::Local;
+use chrono::{prelude::Local, Utc};
 use lazy_static::lazy_static;
+use simplicio::*;
 use std::io::Write;
-use ansi_term::Color;
-use fs4::FileExt;
 
 // TODO:
 // 1. Implement advanced error handling for file operations
@@ -17,6 +16,7 @@ use fs4::FileExt;
 lazy_static! {
     static ref LOGGER: std::sync::RwLock<Logger> = std::sync::RwLock::new(Logger::new());
 }
+
 
 /// Sets the current Logger struct
 /// - Useful for if the log configuration was saved and reloaded
@@ -37,6 +37,7 @@ pub fn set_logger(new_logger: &Logger) {
 /// - `terminal_ignore`: List of log levels that terminal output ignores.
 /// - `log_format`: The format string for log messages. Placeholders like `{timestamp}`, `{module_path}`, `{level}`, and `{message}` will be replaced with actual values.
 /// - `timestampt_format`: The format string for time display. Placeholders like `%y`, `%m`, `%d`, `%H`, `%M`, and `%S` will be replaced with actual values.
+/// - `color_set`: HashMap relating a `Level` to a `ColorSet` for terminal output customization.
 ///
 /// # Examples
 ///
@@ -55,6 +56,9 @@ pub fn set_logger(new_logger: &Logger) {
 /// logger.terminal_ignore(Level::Error); //Ignores the Error level messages for terminal output
 /// logger.log_format("[{timestamp} {level}] {message}"); // Set a custom format for log messages
 /// logger.timestamp_format("%Y-%m-%d %H:%M:%S"); // Set a custom format for timestamps
+/// logger.color(Level::Info, TextColor::Green); // Set the text color for INFO to Green in terminal output
+/// logger.style(Level::Info, TextStyle::Underline); // Set the style for INFO to Underlined in terminal output
+/// logger.background(Level::Info, BackgroundColor::Magenta); // Set the background color for INFO to Magenta in terminal output
 /// ```
 #[derive(Clone)]
 pub struct Logger {
@@ -66,7 +70,9 @@ pub struct Logger {
     pub(crate) file_ignore: Vec<Level>,
     pub(crate) terminal_ignore: Vec<Level>,
     pub(crate) log_format: String,
+    pub(crate) timezone: TimeZone,
     pub(crate) timestamp_format: String,
+    pub(crate) color_set: std::collections::HashMap<Level, ColorSet>,
     //TODO: add other fields
 }
 
@@ -95,12 +101,22 @@ impl Logger {
             path: None,
             terminal_output: true,
             file_output: false,
-            output_level: Level::Info,
-            ignore: Vec::new(),
-            file_ignore: Vec::new(),
-            terminal_ignore: Vec::new(),
-            log_format: String::from("[{timestamp} {level} {module_path}] {message}"),
+            output_level: Level::Trace,
+            ignore: vec![],
+            file_ignore: vec![],
+            terminal_ignore: vec![],
+            log_format: s!("[{timestamp} {level} {module_path}] {message}"),
+            timezone: TimeZone::Local,
             timestamp_format: String::from("%Y-%m-%d %H:%M:%S"),
+            color_set: map!(
+                Level::Trace => ColorSet::new(TextStyle::Normal, TextColor::Magenta),
+                Level::Debug => ColorSet::new(TextStyle::Normal, TextColor::Blue),
+                Level::Info => ColorSet::new(TextStyle::Normal, TextColor::Green),
+                Level::Warning => ColorSet::new(TextStyle::Normal, TextColor::Yellow),
+                Level::Error => ColorSet::new(TextStyle::Normal, TextColor::Red),
+                Level::Critical => ColorSet::new(TextStyle::Bold, TextColor::Red),
+                Level::None => ColorSet::new(TextStyle::Normal, TextColor::Reset)
+            ),
         }
     }
 
@@ -120,7 +136,7 @@ impl Logger {
     /// logger.path("/var/log/my_app.log");
     /// ```
     pub fn path(&mut self, path: &str) -> Self {
-        self.path = Some(path.to_string());
+        self.path = Some(s!(path));
         set_logger(self);
         return self.to_owned();
     }
@@ -266,7 +282,26 @@ impl Logger {
     /// logger.log_format("{timestamp} - {level}: {message}"); // Set a custom format for log messages
     /// ```
     pub fn log_format(&mut self, format: &str) -> Self {
-        self.log_format = format.to_string();
+        self.log_format = s!(format);
+        set_logger(&self);
+        return self.to_owned();
+    }
+
+    /// Sets the preferred timezone for the log display.
+    ///
+    /// # Arguments
+    /// * `timezone` - A value which depicts Local or UTC timezone preference.
+    ///
+    /// # Examples
+    ///
+    /// ``` no_run
+    /// use logfather::*;
+    ///
+    /// let mut logger = Logger::new();
+    /// logger.timezone(TimeZone::Utc); // Set timezone to either be local or utc
+    /// ```
+    pub fn timezone(&mut self, timezone: TimeZone) -> Self {
+        self.timezone = timezone;
         set_logger(&self);
         return self.to_owned();
     }
@@ -289,8 +324,71 @@ impl Logger {
     /// logger.timestamp_format("%m-%d-%y @%H:%M:%S"); // Set a custom format for timestamp display
     /// ```
     pub fn timestamp_format(&mut self, format: &str) -> Self {
-        self.timestamp_format = format.to_string();
+        self.timestamp_format = s!(format);
         set_logger(self);
+        return self.to_owned();
+    }
+
+    /// Sets the preferred text color for Level in terminal output.
+    ///
+    /// # Arguments
+    /// * `level` - The Level being modified
+    /// * `color` - The preferred color
+    ///
+    /// # Examples
+    ///
+    /// ``` no_run
+    /// use logfather::*;
+    ///
+    /// let mut logger = Logger::new();
+    /// logger.color(Level::Info, TextColor::Blue); 
+    /// ```
+    pub fn color(&mut self, level: Level, color: TextColor) -> Self {
+        let color_set = self.color_set.get_mut(&level).expect("Magic has occured");
+        color_set.text = color;
+        set_logger(&self);
+        return self.to_owned();
+    }
+
+    /// Sets the preferred text style for Level in terminal output.
+    ///
+    /// # Arguments
+    /// * `level` - The Level being modified
+    /// * `style` - The preferred style
+    ///
+    /// # Examples
+    ///
+    /// ``` no_run
+    /// use logfather::*;
+    ///
+    /// let mut logger = Logger::new();
+    /// logger.style(Level::Info, TextStyle::Bold); 
+    /// ```
+    pub fn style(&mut self, level: Level, style: TextStyle) -> Self {
+        let color_set = self.color_set.get_mut(&level).expect("Magic has occured");
+        color_set.style = style;
+        set_logger(&self);
+        return self.to_owned();
+    }
+
+    /// Sets the preferred text color for Level in terminal output.
+    ///
+    /// # Arguments
+    /// * `level` - The Level being modified
+    /// * `background` - The preferred background color for the Level
+    ///
+    /// # Examples
+    ///
+    /// ``` no_run
+    /// use logfather::*;
+    ///
+    /// let mut logger = Logger::new();
+    /// logger.background(Level::Info, BackgroundColor::Blue); 
+    /// ```
+    pub fn background(&mut self, level: Level, background: BackgroundColor) -> Self {
+        let color_set = self.color_set.get_mut(&level).expect("Magic has occured");
+        color_set.background = background;
+        set_logger(&self);
         return self.to_owned();
     }
 }
@@ -299,12 +397,16 @@ impl Logger {
 ///
 /// # Variants
 ///
-/// - `Info`: Used for informational messages.
+/// - `Trace`: Used for standard output - lowest level.
 /// - `Debug`: Used for debug messages.
+/// - `Info`: Used for informational messages.
 /// - `Warning`: Used for warning messages.
 /// - `Error`: Used for error messages.
 /// - `Critical`: Used for critical error messages that might require immediate attention.
 /// - `None`: Special level used to disable logging.
+///
+/// # Values:
+/// None > Critical > Error > Warning > Info > Debug > Trace
 ///
 /// # Examples
 ///
@@ -315,25 +417,196 @@ impl Logger {
 /// let mut logger = Logger::new();
 /// logger.level(Level::Error); // Only log errors and critical messages
 /// ```
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Level {
-    Info = 0,
+    Trace = 0,
     Debug = 1,
-    Warning = 2,
-    Error = 3,
-    Critical = 4,
+    Info = 2,
+    Warning = 3,
+    Error = 4,
+    Critical = 5,
     None = 255,
 }
 
-impl ToString for Level {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for Level {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            Level::Info => String::from("INFO"),
-            Level::Debug => String::from("DEBUG"),
-            Level::Warning => String::from("WARNING"),
-            Level::Error => String::from("ERROR"),
-            Level::Critical => String::from("CRITICAL"),
-            Level::None => String::from("NONE"),
+            Level::Trace => write!(f,"TRACE"),
+            Level::Debug => write!(f,"DEBUG"),
+            Level::Info => write!(f,"INFO"),
+            Level::Warning => write!(f,"WARNING"),
+            Level::Error => write!(f,"ERROR"),
+            Level::Critical => write!(f,"CRITICAL"),
+            Level::None => write!(f,"NONE"),
+        }
+    }
+}
+
+/// TimeZone selection.
+///
+/// # Variants
+///
+/// - `Local`: Time will be displayed in local time (default).
+/// - `Utc`: Time will be displayed in Zulu (UTC) time.
+///
+/// # Examples
+///
+/// ``` no_run
+/// use logfather::*;
+///
+/// let mut logger = Logger::new();
+/// logger.timezone(TimeZone::Utc); // Sets timezone to UTC
+/// ```
+#[derive(Clone)]
+pub enum TimeZone {
+    Local,
+    Utc,
+}
+
+/// Enum representing available text colors for terminal output.
+///
+/// This is used to customize the color of Level text in log messages when displayed in the terminal.
+///
+/// # Variants
+/// Each variant corresponds to a standard terminal color.
+/// - `Black`, `Red`, `Green`, `Yellow`, `Blue`, `Magenta`, `Cyan`, `White`, `Reset`
+///
+/// # Examples
+///
+/// ``` no_run
+/// use logfather::*;
+///
+/// let text_color = TextColor::Blue;
+/// ```
+#[derive(Clone)]
+pub enum TextColor {
+    Black,
+    Red,
+    Green,
+    Yellow,
+    Blue,
+    Magenta,
+    Cyan,
+    White,
+    Reset,
+}
+
+impl std::fmt::Display for TextColor {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            TextColor::Black => write!(f, "\x1b[30m"),
+            TextColor::Red => write!(f, "\x1b[31m"),
+            TextColor::Green => write!(f, "\x1b[32m"),
+            TextColor::Yellow => write!(f, "\x1b[33m"),
+            TextColor::Blue => write!(f, "\x1b[34m"),
+            TextColor::Magenta => write!(f, "\x1b[35m"),
+            TextColor::Cyan => write!(f, "\x1b[36m"),
+            TextColor::White => write!(f, "\x1b[37m"),
+            TextColor::Reset => write!(f, "\x1b[0m"),
+        }
+    }
+}
+
+/// Enum representing available background colors for terminal output.
+///
+/// This is used to customize the background color of log messages when displayed in the terminal.
+///
+/// # Variants
+/// Each variant corresponds to a standard terminal background color.
+/// - `Black`, `Red`, `Green`, `Yellow`, `Blue`, `Magenta`, `Cyan`, `White`, `Reset`
+///
+/// # Examples
+///
+/// ``` no_run
+/// use logfather::*;
+///
+/// let background_color = BackgroundColor::Green;
+/// ```
+#[derive(Clone)]
+pub enum BackgroundColor {
+    Black,
+    Red,
+    Green,
+    Yellow,
+    Blue,
+    Magenta,
+    Cyan,
+    White,
+}
+
+impl std::fmt::Display for BackgroundColor {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            BackgroundColor::Black => write!(f, "\x1b[40m"),
+            BackgroundColor::Red => write!(f, "\x1b[41m"),
+            BackgroundColor::Green => write!(f, "\x1b[42m"),
+            BackgroundColor::Yellow => write!(f, "\x1b[43m"),
+            BackgroundColor::Blue => write!(f, "\x1b[44m"),
+            BackgroundColor::Magenta => write!(f, "\x1b[45m"),
+            BackgroundColor::Cyan => write!(f, "\x1b[46m"),
+            BackgroundColor::White => write!(f, "\x1b[47m"),
+        }
+    }
+}
+
+/// Enum representing available text styles for terminal output.
+///
+/// This is used to customize the style of text in log messages when displayed in the terminal.
+///
+/// # Variants
+/// - `Normal`: Default text style with no additional formatting.
+/// - `Bold`: Bold text style.
+/// - `Italic`: Italic text style.
+/// - `Underline`: Underlined text style.
+///
+/// # Examples
+///
+/// ``` no_run
+/// use logfather::*;
+///
+/// let text_style = TextStyle::Bold;
+/// ```
+#[derive(Clone)]
+pub enum TextStyle {
+    Normal,
+    Bold,
+    Italic,
+    Underline,
+}
+
+impl std::fmt::Display for TextStyle {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            TextStyle::Normal => write!(f, "\x1b[0m"),
+            TextStyle::Bold => write!(f, "\x1b[1m"),
+            TextStyle::Italic => write!(f, "\x1b[3m"),
+            TextStyle::Underline => write!(f, "\x1b[4m"),
+        }
+    }
+}
+
+/// A struct representing text style, text color, and background color for a specific log level.
+///
+/// This struct is used to customize the appearance of log messages in the terminal.
+///
+/// # Fields
+/// - `style`: The text style (e.g., normal, bold, italic, underline).
+/// - `text`: The text color.
+/// - `background`: The background color.
+///
+#[derive(Clone)]
+pub(crate) struct ColorSet {
+    pub(crate) style: TextStyle,
+    pub(crate) text: TextColor,
+    pub(crate) background: BackgroundColor,
+}
+
+impl ColorSet {
+    pub(crate) fn new(style: TextStyle, text: TextColor) -> Self {
+        Self {
+            style,
+            text,
+            background: BackgroundColor::Black,
         }
     }
 }
@@ -367,8 +640,16 @@ pub fn log(level: Level, module_path: &str, message: &str) {
     }
 
     //Get the time
-    let now = Local::now();
-    let time = now.format(&logger.timestamp_format).to_string();
+    let time = match logger.timezone {
+        TimeZone::Local => {
+            let now = Local::now();
+            now.format(&logger.timestamp_format).to_string()
+        },
+        TimeZone::Utc => {
+            let now = Utc::now();
+            now.format(&logger.timestamp_format).to_string()
+        },
+    };
 
     //Replace the relevant sections in the format
     let log_format = logger.log_format
@@ -381,58 +662,58 @@ pub fn log(level: Level, module_path: &str, message: &str) {
         //Can safely unwrap
         let path = logger.path.unwrap();
 
-        let mut file = std::fs::OpenOptions::new()
+        let file = std::fs::OpenOptions::new()
             .read(true)
             .append(true)
             .create(true)
-            .open(path.as_str())
+            .open(&path)
             .expect("Failed to open file");
 
         //Output-specific level replacement
         let format = log_format.replace("{level}", &level.to_string());
 
         //Lock down the file while it's being written to in case multithreaded application
-        file.lock_exclusive().expect("Could not lock file for logging");
-        match writeln!(file, "{}", format) { _ => () }  //Silent error handling 
-        file.unlock().expect("Could not unlock file after writing");
+        let file_mutex = std::sync::Mutex::new(file);
+        {
+            let mut file = file_mutex.lock().unwrap();
+            match writeln!(file, "{}", format) { _ => () }  //Silent error handling 
+        }
     }
 
     //Terminal output
     if logger.terminal_output && !logger.terminal_ignore.contains(&level) {
         //Set color
-        //TODO: make this configurable by the user
-        let level_color = match level {
-            Level::Info => Color::Green.normal(),
-            Level::Debug => Color::Blue.normal(),
-            Level::Warning => Color::Yellow.normal(),
-            Level::Error => Color::Red.normal(),
-            Level::Critical => Color::Red.bold(),
-            Level::None => Color::White.normal(), // Retain for addition purposes
-        };
+        let color_set = logger.color_set.get(&level).unwrap();
+        let level_output = cnct!(
+            color_set.style.to_string(), 
+            color_set.background.to_string(),
+            color_set.text.to_string()
+        );
 
         //Output-specific level replacement
         let format = log_format.replace(
-            "{level}", &level_color.paint(level.to_string()).to_string()
+            "{level}", &format!("{}{}{}", level_output, level.to_string(), TextColor::Reset.to_string())
         );
 
         //Print to the terminal
         println!("{}", format);
+
     }
 }
 
-/// Logs an informational message.
+/// Logs a message for tracing - very low priority.
 ///
 /// # Example
 ///
 /// ``` no_run
-/// use logfather::*;
+/// use logfather::trace;
 ///
-/// info!("This is an info message");
+/// trace!("This is a debug message");
 /// ```
 #[macro_export]
-macro_rules! info {
+macro_rules! trace {
     ($message:expr) => {
-        log(Level::Info, module_path!(), $message);
+        $crate::log($crate::Level::Trace, module_path!(), $message);
     };
 }
 
@@ -441,14 +722,30 @@ macro_rules! info {
 /// # Example
 ///
 /// ``` no_run
-/// use logfather::*;
+/// use logfather::debug;
 ///
 /// debug!("This is a debug message");
 /// ```
 #[macro_export]
 macro_rules! debug {
     ($message:expr) => {
-        log(Level::Debug, module_path!(), $message);
+        $crate::log($crate::Level::Debug, module_path!(), $message);
+    };
+}
+
+/// Logs an informational message.
+///
+/// # Example
+///
+/// ``` no_run
+/// use logfather::info;
+///
+/// info!("This is an info message");
+/// ```
+#[macro_export]
+macro_rules! info {
+    ($message:expr) => {
+        $crate::log($crate::Level::Info, module_path!(), $message);
     };
 }
 
@@ -457,7 +754,7 @@ macro_rules! debug {
 /// # Example
 ///
 /// ``` no_run
-/// use logfather::*;
+/// use logfather::warning;
 ///
 /// warning!("This is a warning message");
 /// ```
@@ -466,7 +763,7 @@ macro_rules! debug {
 #[macro_export]
 macro_rules! warning {
     ($message:expr) => {
-        log(Level::Warning, module_path!(), $message);
+        $crate::log($crate::Level::Warning, module_path!(), $message);
     };
 }
 
@@ -475,7 +772,7 @@ macro_rules! warning {
 /// # Example
 ///
 /// ``` no_run
-/// use logfather::*;
+/// use logfather::warn;
 ///
 /// warn!("This is a warning message");
 /// ```
@@ -484,7 +781,7 @@ macro_rules! warning {
 #[macro_export]
 macro_rules! warn {
     ($message:expr) => {
-        log(Level::Warning, module_path!(), $message);
+        $crate::log($crate::Level::Warning, module_path!(), $message);
     };
 }
 
@@ -493,7 +790,7 @@ macro_rules! warn {
 /// # Example
 ///
 /// ``` no_run
-/// use logfather::*;
+/// use logfather::error;
 ///
 /// error!("This is an error message");
 /// ```
@@ -502,7 +799,7 @@ macro_rules! warn {
 #[macro_export]
 macro_rules! error {
     ($message:expr) => {
-        log(Level::Error, module_path!(), $message);
+        $crate::log($crate::Level::Error, module_path!(), $message);
     };
 }
 
@@ -511,7 +808,7 @@ macro_rules! error {
 /// # Example
 ///
 /// ``` no_run
-/// use logfather::*;
+/// use logfather::critical;
 ///
 /// critical!("This is a critical message");
 /// ```
@@ -520,7 +817,25 @@ macro_rules! error {
 #[macro_export]
 macro_rules! critical {
     ($message:expr) => {
-        log(Level::Critical, module_path!(), $message);
+        $crate::log($crate::Level::Critical, module_path!(), $message);
+    };
+}
+
+/// Logs a critical message.
+///
+/// # Example
+///
+/// ``` no_run
+/// use logfather::crit;
+///
+/// crit!("This is a critical message");
+/// ```
+///
+/// This macro is intended for critical errors that require immediate attention. Logging at this level typically indicates a serious failure in a component of the application.
+#[macro_export]
+macro_rules! crit {
+    ($message:expr) => {
+        $crate::log($crate::Level::Critical, module_path!(), $message);
     };
 }
 
@@ -598,38 +913,4 @@ mod tests {
         // Verify that no file is created or written to
         assert!(!fs::metadata(test_file_path).is_ok(), "Log file should not exist when file output is disabled");
     }
-
-    // #[test]
-    // fn test_log_level_filtering() {
-    //     let mut logger = Logger::new();
-    //     let test_file_path = "test_log_level.txt";
-
-    //     let _ = fs::remove_file(test_file_path);
-
-    //     // Set file output and path
-    //     logger.file(true);
-    //     logger.path(test_file_path);
-
-    //     // Set log level to Warning and log an Info message (should not be logged)
-    //     logger.level(Level::Warning);
-    //     log(Level::Info, "test_log_level_filtering", "Info level message");
-        
-    //     // Verify that the Info message is not in the file
-    //     let mut file = File::open(test_file_path).unwrap();
-    //     let mut contents = String::new();
-    //     file.read_to_string(&mut contents).unwrap();
-    //     assert!(!contents.contains("Info level message"), "Info level message should not be logged");
-
-    //     // Log a Warning message (should be logged)
-    //     log(Level::Warning, "test_log_level_filtering", "Warning level message");
-
-    //     // Read file again and check for the Warning message
-    //     file = File::open(test_file_path).unwrap();
-    //     contents.clear();
-    //     file.read_to_string(&mut contents).unwrap();
-    //     assert!(contents.contains("Warning level message"), "Warning level message should be logged");
-
-    //     // Clean up: remove the test log file
-    //     fs::remove_file(test_file_path).expect("Failed to delete test log file");
-    // }
 }
