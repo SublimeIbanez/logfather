@@ -103,10 +103,10 @@ impl Logger {
             terminal_output: true,
             file_output: false,
             output_level: Level::Trace,
-            ignore: Vec::new(),
-            file_ignore: Vec::new(),
-            terminal_ignore: Vec::new(),
-            log_format: String::from("[{timestamp} {level} {module_path}] {message}"),
+            ignore: vec![],
+            file_ignore: vec![],
+            terminal_ignore: vec![],
+            log_format: s!("[{timestamp} {level} {module_path}] {message}"),
             timezone: TimeZone::Local,
             timestamp_format: String::from("%Y-%m-%d %H:%M:%S"),
             color_set: map!(
@@ -137,7 +137,7 @@ impl Logger {
     /// logger.path("/var/log/my_app.log");
     /// ```
     pub fn path(&mut self, path: &str) -> Self {
-        self.path = Some(path.to_string());
+        self.path = Some(s!(path));
         set_logger(self);
         return self.to_owned();
     }
@@ -283,7 +283,7 @@ impl Logger {
     /// logger.log_format("{timestamp} - {level}: {message}"); // Set a custom format for log messages
     /// ```
     pub fn log_format(&mut self, format: &str) -> Self {
-        self.log_format = format.to_string();
+        self.log_format = s!(format);
         set_logger(&self);
         return self.to_owned();
     }
@@ -325,7 +325,7 @@ impl Logger {
     /// logger.timestamp_format("%m-%d-%y @%H:%M:%S"); // Set a custom format for timestamp display
     /// ```
     pub fn timestamp_format(&mut self, format: &str) -> Self {
-        self.timestamp_format = format.to_string();
+        self.timestamp_format = s!(format);
         set_logger(self);
         return self.to_owned();
     }
@@ -345,7 +345,7 @@ impl Logger {
     /// logger.color(Level::Info, TextColor::Blue); 
     /// ```
     pub fn color(&mut self, level: Level, color: TextColor) -> Self {
-        let color_set = self.color_set.get_mut(&level).unwrap();
+        let color_set = self.color_set.get_mut(&level).expect("Magic has occured");
         color_set.text = color;
         set_logger(&self);
         return self.to_owned();
@@ -366,7 +366,7 @@ impl Logger {
     /// logger.style(Level::Info, TextStyle::Bold); 
     /// ```
     pub fn style(&mut self, level: Level, style: TextStyle) -> Self {
-        let color_set = self.color_set.get_mut(&level).unwrap();
+        let color_set = self.color_set.get_mut(&level).expect("Magic has occured");
         color_set.style = style;
         set_logger(&self);
         return self.to_owned();
@@ -387,7 +387,7 @@ impl Logger {
     /// logger.background(Level::Info, BackgroundColor::Blue); 
     /// ```
     pub fn background(&mut self, level: Level, background: BackgroundColor) -> Self {
-        let color_set = self.color_set.get_mut(&level).unwrap();
+        let color_set = self.color_set.get_mut(&level).expect("Magic has occured");
         color_set.background = background;
         set_logger(&self);
         return self.to_owned();
@@ -429,17 +429,17 @@ pub enum Level {
     None = 255,
 }
 
-impl ToString for Level {
-    fn to_string(&self) -> String {
-        return s!(match self {
-            Level::Trace => "TRACE",
-            Level::Debug => "DEBUG",
-            Level::Info => "INFO",
-            Level::Warning => "WARNING",
-            Level::Error => "ERROR",
-            Level::Critical => "CRITICAL",
-            Level::None => "NONE",
-        });
+impl std::fmt::Display for Level {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Level::Trace => write!(f,"TRACE"),
+            Level::Debug => write!(f,"DEBUG"),
+            Level::Info => write!(f,"INFO"),
+            Level::Warning => write!(f,"WARNING"),
+            Level::Error => write!(f,"ERROR"),
+            Level::Critical => write!(f,"CRITICAL"),
+            Level::None => write!(f,"NONE"),
+        }
     }
 }
 
@@ -667,7 +667,7 @@ pub fn log(level: Level, module_path: &str, message: &str) {
             .read(true)
             .append(true)
             .create(true)
-            .open(path.as_str())
+            .open(&path)
             .expect("Failed to open file");
 
         //Output-specific level replacement
