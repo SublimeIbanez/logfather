@@ -432,7 +432,7 @@ impl Color {
     }
 
     pub fn bold(&self) -> String {
-        return format!("{}{}", "\x1b[1b", self.to_string());
+        return format!("{}{}", "\x1b[1m", self.to_string());
     }
 }
 
