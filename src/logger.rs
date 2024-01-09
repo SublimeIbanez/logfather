@@ -717,7 +717,7 @@ macro_rules! trace {
         $crate::log($crate::Level::Trace, module_path!(), msg)
     };
 
-    ($fmt:expr, $($args:expr),+) => {
+    ($fmt:expr, $($args:expr),+ $(,)?) => {
         {
             let msg: &str = &format!($fmt, $($args),+);
             $crate::log($crate::Level::Trace, module_path!(), msg);
@@ -741,7 +741,7 @@ macro_rules! debug {
         $crate::log($crate::Level::Debug, module_path!(), msg)
     };
 
-    ($fmt:expr, $($args:expr),+) => {
+    ($fmt:expr, $($args:expr),+ $(,)?) => {
         {
             let msg: &str = &format!($fmt, $($args),+);
             $crate::log($crate::Level::Debug, module_path!(), msg);
@@ -765,7 +765,7 @@ macro_rules! info {
         $crate::log($crate::Level::Info, module_path!(), msg)
     };
 
-    ($fmt:expr, $($args:expr),+) => {
+    ($fmt:expr, $($args:expr),+ $(,)?) => {
         {
             let msg: &str = &format!($fmt, $($args),+);
             $crate::log($crate::Level::Info, module_path!(), msg);
@@ -791,7 +791,7 @@ macro_rules! warning {
         $crate::log($crate::Level::Warning, module_path!(), msg)
     };
 
-    ($fmt:expr, $($args:expr),+) => {
+    ($fmt:expr, $($args:expr),+ $(,)?) => {
         {
             let msg: &str = &format!($fmt, $($args),+);
             $crate::log($crate::Level::Warning, module_path!(), msg);
@@ -817,7 +817,7 @@ macro_rules! warn {
         $crate::log($crate::Level::Warning, module_path!(), msg)
     };
 
-    ($fmt:expr, $($args:expr),+) => {
+    ($fmt:expr, $($args:expr),+ $(,)?) => {
         {
             let msg: &str = &format!($fmt, $($args),+);
             $crate::log($crate::Level::Warning, module_path!(), msg);
@@ -843,9 +843,9 @@ macro_rules! error {
         $crate::log($crate::Level::Error, module_path!(), msg)
     };
 
-    ($msg:expr, $($args:expr),+) => {
+    ($fmt:expr, $($args:expr),+ $(,)?) => {
         {
-            let msg: &str = &format!($msg, $($args),+);
+            let msg: &str = &format!($fmt, $($args),+);
             $crate::log($crate::Level::Error, module_path!(), msg);
         }
     };
@@ -869,7 +869,7 @@ macro_rules! critical {
         $crate::log($crate::Level::Critical, module_path!(), msg)
     };
 
-    ($fmt:expr, $($args:expr),+) => {
+    ($fmt:expr, $($args:expr),+ $(,)?) => {
         {
             let msg: &str = &format!($fmt, $($args),+);
             $crate::log($crate::Level::Critical, module_path!(), msg);
@@ -895,7 +895,7 @@ macro_rules! crit {
         $crate::log($crate::Level::Critical, module_path!(), msg)
     };
 
-    ($fmt:expr, $($args:expr),+) => {
+    ($fmt:expr, $($args:expr),+ $(,)?) => {
         {
             let msg: &str = &format!($fmt, $($args),+);
             $crate::log($crate::Level::Critical, module_path!(), msg);
