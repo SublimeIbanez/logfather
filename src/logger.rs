@@ -712,8 +712,15 @@ pub fn log(level: Level, module_path: &str, message: &str) {
 /// ```
 #[macro_export]
 macro_rules! trace {
-    ($message:expr) => {
-        $crate::log($crate::Level::Trace, module_path!(), $message);
+    ($msg:expr) => {
+        $crate::log($crate::Level::Trace, module_path!(), $msg)
+    };
+
+    ($fmt:expr, $($args:expr),+) => {
+        {
+            let msg = format!($fmt, $($args),+);
+            $crate::log($crate::Level::Trace, module_path!(), &msg);
+        }
     };
 }
 
@@ -728,8 +735,15 @@ macro_rules! trace {
 /// ```
 #[macro_export]
 macro_rules! debug {
-    ($message:expr) => {
-        $crate::log($crate::Level::Debug, module_path!(), $message);
+    ($msg:expr) => {
+        $crate::log($crate::Level::Debug, module_path!(), $msg)
+    };
+
+    ($fmt:expr, $($args:expr),+) => {
+        {
+            let msg = format!($fmt, $($args),+);
+            $crate::log($crate::Level::Debug, module_path!(), &msg);
+        }
     };
 }
 
@@ -744,8 +758,15 @@ macro_rules! debug {
 /// ```
 #[macro_export]
 macro_rules! info {
-    ($message:expr) => {
-        $crate::log($crate::Level::Info, module_path!(), $message);
+    ($msg:expr) => {
+        $crate::log($crate::Level::Info, module_path!(), $msg)
+    };
+
+    ($fmt:expr, $($args:expr),+) => {
+        {
+            let msg = format!($fmt, $($args),+);
+            $crate::log($crate::Level::Info, module_path!(), &msg);
+        }
     };
 }
 
@@ -762,8 +783,15 @@ macro_rules! info {
 /// This macro simplifies the process of logging a message at the `Warning` level.
 #[macro_export]
 macro_rules! warning {
-    ($message:expr) => {
-        $crate::log($crate::Level::Warning, module_path!(), $message);
+    ($msg:expr) => {
+        $crate::log($crate::Level::Warning, module_path!(), $msg)
+    };
+
+    ($fmt:expr, $($args:expr),+) => {
+        {
+            let msg = format!($fmt, $($args),+);
+            $crate::log($crate::Level::Warning, module_path!(), &msg);
+        }
     };
 }
 
@@ -780,8 +808,15 @@ macro_rules! warning {
 /// This macro simplifies the process of logging a message at the `Warning` level.
 #[macro_export]
 macro_rules! warn {
-    ($message:expr) => {
-        $crate::log($crate::Level::Warning, module_path!(), $message);
+    ($msg:expr) => {
+        $crate::log($crate::Level::Warning, module_path!(), $msg)
+    };
+
+    ($fmt:expr, $($args:expr),+) => {
+        {
+            let msg = format!($fmt, $($args),+);
+            $crate::log($crate::Level::Warning, module_path!(), &msg);
+        }
     };
 }
 
@@ -798,8 +833,15 @@ macro_rules! warn {
 /// Use this macro for logging errors, typically when an operation fails or an unexpected condition occurs.
 #[macro_export]
 macro_rules! error {
-    ($message:expr) => {
-        $crate::log($crate::Level::Error, module_path!(), $message);
+    ($msg:expr) => {
+        $crate::log($crate::Level::Error, module_path!(), $msg)
+    };
+
+    ($fmt:expr, $($args:expr),+) => {
+        {
+            let msg = format!($fmt, $($args),+);
+            $crate::log($crate::Level::Error, module_path!(), &msg);
+        }
     };
 }
 
@@ -816,8 +858,15 @@ macro_rules! error {
 /// This macro is intended for critical errors that require immediate attention. Logging at this level typically indicates a serious failure in a component of the application.
 #[macro_export]
 macro_rules! critical {
-    ($message:expr) => {
-        $crate::log($crate::Level::Critical, module_path!(), $message);
+    ($msg:expr) => {
+        $crate::log($crate::Level::Critical, module_path!(), $msg)
+    };
+
+    ($fmt:expr, $($args:expr),+) => {
+        {
+            let msg = format!($fmt, $($args),+);
+            $crate::log($crate::Level::Critical, module_path!(), &msg);
+        }
     };
 }
 
@@ -834,8 +883,15 @@ macro_rules! critical {
 /// This macro is intended for critical errors that require immediate attention. Logging at this level typically indicates a serious failure in a component of the application.
 #[macro_export]
 macro_rules! crit {
-    ($message:expr) => {
-        $crate::log($crate::Level::Critical, module_path!(), $message);
+    ($msg:expr) => {
+        $crate::log($crate::Level::Critical, module_path!(), $msg)
+    };
+
+    ($fmt:expr, $($args:expr),+) => {
+        {
+            let msg = format!($fmt, $($args),+);
+            $crate::log($crate::Level::Critical, module_path!(), &msg);
+        }
     };
 }
 
