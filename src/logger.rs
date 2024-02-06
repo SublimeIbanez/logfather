@@ -76,6 +76,13 @@ pub struct Logger {
     //TODO: add other fields
 }
 
+pub enum LogItems {
+    TimeStamp,
+    Level(Level),
+    ModulePath,
+    Message,
+}
+
 impl Logger {
     /// Constructs a new `Logger` instance with default settings.
     ///
@@ -107,7 +114,7 @@ impl Logger {
             terminal_ignore: vec![],
             log_format: s!("[{timestamp} {level} {module_path}] {message}"),
             timezone: TimeZone::Local,
-            timestamp_format: String::from("%Y-%m-%d %H:%M:%S"),
+            timestamp_format: s!("%Y-%m-%d %H:%M:%S"),
             color_set: map!(
                 Level::Trace => ColorSet::new(TextStyle::Normal, TextColor::Magenta),
                 Level::Debug => ColorSet::new(TextStyle::Normal, TextColor::Blue),
@@ -115,7 +122,7 @@ impl Logger {
                 Level::Warning => ColorSet::new(TextStyle::Normal, TextColor::Yellow),
                 Level::Error => ColorSet::new(TextStyle::Normal, TextColor::Red),
                 Level::Critical => ColorSet::new(TextStyle::Bold, TextColor::Red),
-                Level::None => ColorSet::new(TextStyle::Normal, TextColor::Reset)
+                Level::None => ColorSet::new(TextStyle::Normal, TextColor::Reset),
             ),
         }
     }
@@ -417,7 +424,7 @@ impl Logger {
 /// let mut logger = Logger::new();
 /// logger.level(Level::Error); // Only log errors and critical messages
 /// ```
-#[derive(Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Level {
     Trace = 0,
     Debug = 1,
@@ -478,7 +485,7 @@ pub enum TimeZone {
 ///
 /// let text_color = TextColor::Blue;
 /// ```
-#[derive(Clone)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum TextColor {
     Black,
     Red,
@@ -522,7 +529,7 @@ impl std::fmt::Display for TextColor {
 ///
 /// let background_color = BackgroundColor::Green;
 /// ```
-#[derive(Clone)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum BackgroundColor {
     Black,
     Red,
@@ -566,7 +573,7 @@ impl std::fmt::Display for BackgroundColor {
 ///
 /// let text_style = TextStyle::Bold;
 /// ```
-#[derive(Clone)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum TextStyle {
     Normal,
     Bold,
@@ -594,7 +601,7 @@ impl std::fmt::Display for TextStyle {
 /// - `text`: The text color.
 /// - `background`: The background color.
 ///
-#[derive(Clone)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct ColorSet {
     pub(crate) style: TextStyle,
     pub(crate) text: TextColor,
@@ -643,11 +650,11 @@ pub fn log(level: Level, module_path: &str, message: &str) {
     let time = match logger.timezone {
         TimeZone::Local => {
             let now = Local::now();
-            now.format(&logger.timestamp_format).to_string()
+            s!(now.format(&logger.timestamp_format))
         },
         TimeZone::Utc => {
             let now = Utc::now();
-            now.format(&logger.timestamp_format).to_string()
+            s!(now.format(&logger.timestamp_format))
         },
     };
 
@@ -670,7 +677,7 @@ pub fn log(level: Level, module_path: &str, message: &str) {
             .expect("Failed to open file");
 
         //Output-specific level replacement
-        let format = log_format.replace("{level}", &level.to_string());
+        let format = log_format.replace("{level}", &s!(level));
 
         //Lock down the file while it's being written to in case multithreaded application
         let file_mutex = std::sync::Mutex::new(file);
@@ -685,14 +692,17 @@ pub fn log(level: Level, module_path: &str, message: &str) {
         //Set color
         let color_set = logger.color_set.get(&level).unwrap();
         let level_output = cnct!(
-            color_set.style.to_string(), 
-            color_set.background.to_string(),
-            color_set.text.to_string()
+            color_set.style, 
+            color_set.background,
+            color_set.text,
         );
 
         //Output-specific level replacement
+        // let format = log_format.replace(
+        //     "{level}", &format!("{}{}{}", level_output, level.to_string(), TextColor::Reset.to_string())
+        // );
         let format = log_format.replace(
-            "{level}", &format!("{}{}{}", level_output, level.to_string(), TextColor::Reset.to_string())
+            "{level}", &cnct!(level_output, s!(level), s!(TextColor::Reset))
         );
 
         //Print to the terminal
