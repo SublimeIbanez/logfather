@@ -65,6 +65,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "06ea2b9bc92be3c2baa9334a323ebca2d6f074ff852cd1d7b11064035cd3868f"
 
 [[package]]
+name = "dekor"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b3ef4384366645e7a0edef238717a4b442d81bf69731f7eaa34d0c904df8d62f"
+
+[[package]]
 name = "iana-time-zone"
 version = "0.1.59"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -116,9 +122,10 @@ checksum = "b5e6163cb8c49088c2c36f57875e58ccd8c87c7427f7fbd50ea6710b2f3f2e8f"
 
 [[package]]
 name = "logfather"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "chrono",
+ "dekor",
  "lazy_static",
  "simplicio",
 ]
