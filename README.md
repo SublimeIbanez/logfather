@@ -14,7 +14,7 @@ A simple, lightweight, and easy-to-use logging system. It allows for detailed lo
 To start using Logfather, add the following to your `Cargo.toml`:
 ```toml
 [dependencies]
-logfather = "0.2.3"
+logfather = "0.2.4"
 ```
 - Minimum supported Rust version: `1.60.0`
 
@@ -47,7 +47,7 @@ use logfather::*;
 
 fn main() {
     let mut logger = Logger::new();
-    logger.terminal(false) // Disable terminal output 
+    logger.terminal(false); // Disable terminal output 
     logger.file(true); // Enable file output
     logger.path("log.txt"); // Set the path for file logging
     logger.level(Level::Error); // Set the minimum level

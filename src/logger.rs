@@ -2,6 +2,7 @@ use chrono::{prelude::Local, Utc};
 use lazy_static::lazy_static;
 use simplicio::*;
 use std::io::Write;
+use dekor::*;
 
 // TODO:
 // 1. Implement advanced error handling for file operations
@@ -18,8 +19,26 @@ lazy_static! {
 }
 
 
-/// Sets the current Logger struct
-/// - Useful for if the log configuration was saved and reloaded
+/// Replaces the current global logger instance with a new one.
+///
+/// This function allows updating the global logger configuration at runtime. It should be used
+/// with caution to avoid race conditions in multi-threaded environments. The new logger configuration
+/// is immediately applied to all subsequent log operations.
+///
+/// # Arguments
+/// * `new_logger` - A reference to the `Logger` instance that will replace the current global logger.
+///
+/// # Panics
+/// Panics if the global logger lock cannot be acquired.
+///
+/// # Examples
+/// ```
+/// use logfather::*;
+///
+/// let mut custom_logger = Logger::new();
+/// custom_logger.level(Level::Warning); // Set custom logging level
+/// logfather::logger::set_logger(&custom_logger); // Apply the custom logger globally
+/// ```
 pub fn set_logger(new_logger: &Logger) {
     let mut logger = LOGGER.write().expect("Could not access the logger");
     *logger = new_logger.clone();
@@ -37,7 +56,7 @@ pub fn set_logger(new_logger: &Logger) {
 /// - `terminal_ignore`: List of log levels that terminal output ignores.
 /// - `log_format`: The format string for log messages. Placeholders like `{timestamp}`, `{module_path}`, `{level}`, and `{message}` will be replaced with actual values.
 /// - `timestampt_format`: The format string for time display. Placeholders like `%y`, `%m`, `%d`, `%H`, `%M`, and `%S` will be replaced with actual values.
-/// - `color_set`: HashMap relating a `Level` to a `ColorSet` for terminal output customization.
+/// - `styles`: HashMap relating a `Level` to a `TextStyle` for terminal output customization.
 ///
 /// # Examples
 ///
@@ -56,9 +75,7 @@ pub fn set_logger(new_logger: &Logger) {
 /// logger.terminal_ignore(Level::Error); //Ignores the Error level messages for terminal output
 /// logger.log_format("[{timestamp} {level}] {message}"); // Set a custom format for log messages
 /// logger.timestamp_format("%Y-%m-%d %H:%M:%S"); // Set a custom format for timestamps
-/// logger.color(Level::Info, TextColor::Green); // Set the text color for INFO to Green in terminal output
-/// logger.style(Level::Info, TextStyle::Underline); // Set the style for INFO to Underlined in terminal output
-/// logger.background(Level::Info, BackgroundColor::Magenta); // Set the background color for INFO to Magenta in terminal output
+/// logger.add_style(Level::Info, Style::Underline); // Set the style for INFO to Underlined in terminal output
 /// ```
 #[derive(Clone)]
 pub struct Logger {
@@ -72,15 +89,8 @@ pub struct Logger {
     pub(crate) log_format: String,
     pub(crate) timezone: TimeZone,
     pub(crate) timestamp_format: String,
-    pub(crate) color_set: std::collections::HashMap<Level, ColorSet>,
+    pub(crate) styles: std::collections::HashMap<Level, Vec<Style>>,
     //TODO: add other fields
-}
-
-pub enum LogItems {
-    TimeStamp,
-    Level(Level),
-    ModulePath,
-    Message,
 }
 
 impl Logger {
@@ -115,14 +125,14 @@ impl Logger {
             log_format: s!("[{timestamp} {level} {module_path}] {message}"),
             timezone: TimeZone::Local,
             timestamp_format: s!("%Y-%m-%d %H:%M:%S"),
-            color_set: map!(
-                Level::Trace => ColorSet::new(TextStyle::Normal, TextColor::Magenta),
-                Level::Debug => ColorSet::new(TextStyle::Normal, TextColor::Blue),
-                Level::Info => ColorSet::new(TextStyle::Normal, TextColor::Green),
-                Level::Warning => ColorSet::new(TextStyle::Normal, TextColor::Yellow),
-                Level::Error => ColorSet::new(TextStyle::Normal, TextColor::Red),
-                Level::Critical => ColorSet::new(TextStyle::Bold, TextColor::Red),
-                Level::None => ColorSet::new(TextStyle::Normal, TextColor::Reset),
+            styles: map!(
+                Level::Trace    => vec![Style::FGPurple],
+                Level::Debug    => vec![Style::FGBlue],
+                Level::Info     => vec![Style::FGGreen],
+                Level::Warning  => vec![Style::FGYellow],
+                Level::Error    => vec![Style::FGRed],
+                Level::Critical => vec![Style::Bold, Style::FGRed],
+                Level::None     => vec![],
             ),
         }
     }
@@ -336,32 +346,65 @@ impl Logger {
         return self.to_owned();
     }
 
-    /// Sets the preferred text color for Level in terminal output.
+    /// Sets the text styles for a specific log level.
+    ///
+    /// This function allows customizing the appearance of log messages in the terminal based on their
+    /// level. Each level can be associated with a set of styles, such as color or text decoration (e.g., bold, underline).
     ///
     /// # Arguments
-    /// * `level` - The Level being modified
-    /// * `color` - The preferred color
+    /// * `level` - The log level whose output style will be modified.
+    /// * `style_set` - A vector of `Style` enums specifying the styles to apply to the specified log level.
+    ///
+    /// # Returns
+    /// Returns the modified `Logger` instance to allow for method chaining.
     ///
     /// # Examples
-    ///
-    /// ``` no_run
+    /// ```
     /// use logfather::*;
     ///
     /// let mut logger = Logger::new();
-    /// logger.color(Level::Info, TextColor::Blue); 
+    /// logger.style(Level::Info, vec![Style::FGGreen, Style::Bold]); // Set INFO messages to be green and bold
     /// ```
-    pub fn color(&mut self, level: Level, color: TextColor) -> Self {
-        let color_set = self.color_set.get_mut(&level).expect("Magic has occured");
-        color_set.text = color;
+    pub fn style(&mut self, level: Level, style_set: Vec<Style>) -> Self {
+        self.styles.insert(level, style_set);
+        return self.to_owned();
+    }
+
+    /// Adds a style to the list of styles for a specified log level.
+    ///
+    /// This function is useful for incrementally building up the styling of log messages at different
+    /// levels without replacing the existing styles. It adds a single `TextStyle` to the list of styles
+    /// associated with a given log level.
+    ///
+    /// # Arguments
+    /// * `level` - The log level to modify.
+    /// * `style` - The style to add to the list of styles for the specified level.
+    ///
+    /// # Panics
+    /// Panics if the log level does not already have an associated list of styles.
+    ///
+    /// # Returns
+    /// Returns the modified `Logger` instance to allow for method chaining.
+    ///
+    /// # Examples
+    /// ```
+    /// use logfather::*;
+    ///
+    /// let mut logger = Logger::new();
+    /// logger.add_style(Level::Error, Style::FGRed); // Add red color to ERROR level messages
+    /// ```
+    pub fn add_style(&mut self, level: Level, style: Style) -> Self {
+        let styles = self.styles.get_mut(&level).expect("Magic has occured");
+        styles.push(style);
         set_logger(&self);
         return self.to_owned();
     }
 
-    /// Sets the preferred text style for Level in terminal output.
+    /// Removes a style from the list of styles for a given level.
     ///
     /// # Arguments
     /// * `level` - The Level being modified
-    /// * `style` - The preferred style
+    /// * `style` - The Style being removed from the `TextStyle` enum
     ///
     /// # Examples
     ///
@@ -369,34 +412,38 @@ impl Logger {
     /// use logfather::*;
     ///
     /// let mut logger = Logger::new();
-    /// logger.style(Level::Info, TextStyle::Bold); 
+    /// logger.remove_style(Level::Info, Style::BGBlue); 
     /// ```
-    pub fn style(&mut self, level: Level, style: TextStyle) -> Self {
-        let color_set = self.color_set.get_mut(&level).expect("Magic has occured");
-        color_set.style = style;
+    pub fn remove_style(&mut self, level: Level, style: Style) -> Self {
+        let styles = self.styles.get_mut(&level).expect("Magic has occured");
+        styles.retain(|s| *s != style);
         set_logger(&self);
         return self.to_owned();
     }
 
-    /// Sets the preferred text color for Level in terminal output.
+    /// Retrieves a copy of the styles associated with a specific log level.
+    ///
+    /// This function returns the current list of styles applied to log messages of the specified level.
+    /// It is useful for inspecting or dynamically adjusting the logging output based on the application's state.
     ///
     /// # Arguments
-    /// * `level` - The Level being modified
-    /// * `background` - The preferred background color for the Level
+    /// * `level` - The log level whose styles will be retrieved.
+    ///
+    /// # Returns
+    /// Returns a vector of `Style` enums representing the styles associated with the specified log level.
+    ///
+    /// # Panics
+    /// Panics if there are no styles associated with the specified log level.
     ///
     /// # Examples
-    ///
-    /// ``` no_run
+    /// ```
     /// use logfather::*;
     ///
-    /// let mut logger = Logger::new();
-    /// logger.background(Level::Info, BackgroundColor::Blue); 
+    /// let logger = Logger::new();
+    /// let info_styles = logger.styles(Level::Info); // Retrieve styles for INFO level messages
     /// ```
-    pub fn background(&mut self, level: Level, background: BackgroundColor) -> Self {
-        let color_set = self.color_set.get_mut(&level).expect("Magic has occured");
-        color_set.background = background;
-        set_logger(&self);
-        return self.to_owned();
+    pub fn styles(&self, level: Level) -> Vec<Style> {
+        return self.styles.get(&level).expect("Magic has occured").clone();
     }
 }
 
@@ -464,159 +511,14 @@ impl std::fmt::Display for Level {
 /// let mut logger = Logger::new();
 /// logger.timezone(TimeZone::Utc); // Sets timezone to UTC
 /// ```
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum TimeZone {
     Local,
     Utc,
 }
 
-/// Enum representing available text colors for terminal output.
-///
-/// This is used to customize the color of Level text in log messages when displayed in the terminal.
-///
-/// # Variants
-/// Each variant corresponds to a standard terminal color.
-/// - `Black`, `Red`, `Green`, `Yellow`, `Blue`, `Magenta`, `Cyan`, `White`, `Reset`
-///
-/// # Examples
-///
-/// ``` no_run
-/// use logfather::*;
-///
-/// let text_color = TextColor::Blue;
-/// ```
-#[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub enum TextColor {
-    Black,
-    Red,
-    Green,
-    Yellow,
-    Blue,
-    Magenta,
-    Cyan,
-    White,
-    Reset,
-}
+// ##################################################################### Log Definition #####################################################################
 
-impl std::fmt::Display for TextColor {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            TextColor::Black => write!(f, "\x1b[30m"),
-            TextColor::Red => write!(f, "\x1b[31m"),
-            TextColor::Green => write!(f, "\x1b[32m"),
-            TextColor::Yellow => write!(f, "\x1b[33m"),
-            TextColor::Blue => write!(f, "\x1b[34m"),
-            TextColor::Magenta => write!(f, "\x1b[35m"),
-            TextColor::Cyan => write!(f, "\x1b[36m"),
-            TextColor::White => write!(f, "\x1b[37m"),
-            TextColor::Reset => write!(f, "\x1b[0m"),
-        }
-    }
-}
-
-/// Enum representing available background colors for terminal output.
-///
-/// This is used to customize the background color of log messages when displayed in the terminal.
-///
-/// # Variants
-/// Each variant corresponds to a standard terminal background color.
-/// - `Black`, `Red`, `Green`, `Yellow`, `Blue`, `Magenta`, `Cyan`, `White`, `Reset`
-///
-/// # Examples
-///
-/// ``` no_run
-/// use logfather::*;
-///
-/// let background_color = BackgroundColor::Green;
-/// ```
-#[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub enum BackgroundColor {
-    Black,
-    Red,
-    Green,
-    Yellow,
-    Blue,
-    Magenta,
-    Cyan,
-    White,
-}
-
-impl std::fmt::Display for BackgroundColor {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            BackgroundColor::Black => write!(f, "\x1b[40m"),
-            BackgroundColor::Red => write!(f, "\x1b[41m"),
-            BackgroundColor::Green => write!(f, "\x1b[42m"),
-            BackgroundColor::Yellow => write!(f, "\x1b[43m"),
-            BackgroundColor::Blue => write!(f, "\x1b[44m"),
-            BackgroundColor::Magenta => write!(f, "\x1b[45m"),
-            BackgroundColor::Cyan => write!(f, "\x1b[46m"),
-            BackgroundColor::White => write!(f, "\x1b[47m"),
-        }
-    }
-}
-
-/// Enum representing available text styles for terminal output.
-///
-/// This is used to customize the style of text in log messages when displayed in the terminal.
-///
-/// # Variants
-/// - `Normal`: Default text style with no additional formatting.
-/// - `Bold`: Bold text style.
-/// - `Italic`: Italic text style.
-/// - `Underline`: Underlined text style.
-///
-/// # Examples
-///
-/// ``` no_run
-/// use logfather::*;
-///
-/// let text_style = TextStyle::Bold;
-/// ```
-#[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub enum TextStyle {
-    Normal,
-    Bold,
-    Italic,
-    Underline,
-}
-
-impl std::fmt::Display for TextStyle {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            TextStyle::Normal => write!(f, "\x1b[0m"),
-            TextStyle::Bold => write!(f, "\x1b[1m"),
-            TextStyle::Italic => write!(f, "\x1b[3m"),
-            TextStyle::Underline => write!(f, "\x1b[4m"),
-        }
-    }
-}
-
-/// A struct representing text style, text color, and background color for a specific log level.
-///
-/// This struct is used to customize the appearance of log messages in the terminal.
-///
-/// # Fields
-/// - `style`: The text style (e.g., normal, bold, italic, underline).
-/// - `text`: The text color.
-/// - `background`: The background color.
-///
-#[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct ColorSet {
-    pub(crate) style: TextStyle,
-    pub(crate) text: TextColor,
-    pub(crate) background: BackgroundColor,
-}
-
-impl ColorSet {
-    pub(crate) fn new(style: TextStyle, text: TextColor) -> Self {
-        Self {
-            style,
-            text,
-            background: BackgroundColor::Black,
-        }
-    }
-}
 
 /// Logs a message with the specified log level and module path.
 ///
@@ -625,7 +527,7 @@ impl ColorSet {
 /// # Arguments
 /// * `level` - The severity level of the log message.
 /// * `module_path` - The module path where the log message originates.
-/// * `message` - The log message.
+/// * `message` - The log message broken into fragments.
 ///
 /// # Examples
 ///
@@ -633,7 +535,7 @@ impl ColorSet {
 /// use logfather::*;
 ///
 /// // Example of manually logging an error message
-/// log(Level::Error, module_path!(), "An error occurred");
+/// log(Level::Error, module_path!(), format_args!("An error occurred"));
 /// ```
 ///
 /// Note: In practice, prefer using the provided macros (`info!`, `warning!`, `error!`, `critical!`) for logging.
@@ -669,14 +571,24 @@ pub fn log(level: Level, module_path: &str, args: std::fmt::Arguments) {
     //Only write to the file if both of these are true
     if logger.path.is_some() && logger.file_output && !logger.file_ignore.contains(&level) {
         //Can safely unwrap
-        let path = logger.path.unwrap();
+        let mut path = logger.path.unwrap();
+
+        if path.is_empty() {
+            path = std::env::current_dir().unwrap().to_str().unwrap().to_string();
+            path += ".logger";
+        }
 
         let file = std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
             .read(true)
             .append(true)
-            .create(true)
-            .open(&path)
-            .expect("Failed to open file");
+            .open(&path);
+
+        let file = match file {
+            Ok(f) => f,
+            Err(_e) => { std::fs::File::create(path).expect("Could not create file") },
+        };
 
         //Output-specific level replacement
         let format = log_format.replace("{level}", &s!(level));
@@ -692,19 +604,15 @@ pub fn log(level: Level, module_path: &str, args: std::fmt::Arguments) {
     //Terminal output
     if logger.terminal_output && !logger.terminal_ignore.contains(&level) {
         //Set color
-        let color_set = logger.color_set.get(&level).unwrap();
-        let level_output = cnct!(
-            color_set.style, 
-            color_set.background,
-            color_set.text,
-        );
+        let styles = logger.styles.get(&level).unwrap();
+        
 
         //Output-specific level replacement
         // let format = log_format.replace(
         //     "{level}", &format!("{}{}{}", level_output, level.to_string(), TextColor::Reset.to_string())
         // );
         let format = log_format.replace(
-            "{level}", &cnct!(level_output, s!(level), s!(TextColor::Reset))
+            "{level}", &style(styles.clone(), level)
         );
 
         //Print to the terminal
@@ -862,8 +770,6 @@ macro_rules! crit {
 #[cfg(test)]
 mod tests {
     use super::*;
-    // use std::fs::{self, File};
-    // use std::io::Read;
 
     #[test]
     fn test_level_filtering() {
@@ -905,33 +811,39 @@ mod tests {
         assert_eq!(formatted_message, "INFO - Test message");
     }
 
+    #[test]
+    fn test_output_enablement() {
+        let mut logger = Logger::new();
 
-    // #[test]
-    // fn test_file_output() {
-    //     let mut logger = Logger::new();
-    //     let test_file_path = "test_log.txt";
+        // Initially, terminal output is enabled, and file output is disabled.
+        assert!(logger.terminal_output, "Terminal output should be enabled by default");
+        assert!(!logger.file_output, "File output should be disabled by default");
 
-    //     // Enable file output and set file path
-    //     logger.file(true);
-    //     logger.path(test_file_path);
+        // Enable file output and disable terminal output.
+        logger.file(true);
+        logger.terminal(false);
 
-    //     // Log a message
-    //     log(Level::Info, "test_file_output", "Test log message for file output");
-        
-    //     // Verify that file contains the logged message
-    //     let mut file = File::open(test_file_path).expect("Failed to open log file");
-    //     let mut contents = String::new();
-    //     file.read_to_string(&mut contents).expect("Failed to read log file");
-    //     assert!(contents.contains("Test log message for file output"), "Log message not found in file");
+        assert!(logger.file_output, "File output was not enabled");
+        assert!(!logger.terminal_output, "Terminal output was not disabled");
+    }
 
-    //     // Clean up: remove the test log file
-    //     fs::remove_file(test_file_path).expect("Failed to delete test log file");
+    #[test]
+    fn test_ignore_levels() {
+        let mut logger = Logger::new();
+        logger.ignore(Level::Debug);
+        logger.ignore(Level::Warning);
 
-    //     // Disable file output and attempt to log another message
-    //     logger.file(false);
-    //     log(Level::Info, "test_file_output", "Second test message for file output");
+        assert!(logger.ignore.contains(&Level::Debug), "Debug level should be ignored");
+        assert!(logger.ignore.contains(&Level::Warning), "Warning level should be ignored");
+        assert!(!logger.ignore.contains(&Level::Error), "Error level should not be ignored");
+    }
 
-    //     // Verify that no file is created or written to
-    //     assert!(!fs::metadata(test_file_path).is_ok(), "Log file should not exist when file output is disabled");
-    // }
+    #[test]
+    fn test_style_assignment() {
+        let mut logger = Logger::new();
+        logger.style(Level::Info, vec![Style::FGGreen, Style::Bold]);
+
+        let styles = logger.styles(Level::Info);
+        assert!(styles.contains(&Style::FGGreen) && styles.contains(&Style::Bold), "Info level should have green and bold styles");
+    }
 }
