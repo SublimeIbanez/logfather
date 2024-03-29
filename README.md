@@ -14,18 +14,19 @@ A simple, lightweight, and easy-to-use logging system. It allows for detailed lo
 To start using Logfather, add the following to your `Cargo.toml`:
 ```toml
 [dependencies]
-logfather = "0.2.4"
+logfather = "0.2.5"
 ```
 - Minimum supported Rust version: `1.60.0`
 
 ## Usage
 Macros:
 - <b>Trace:</b> `trace!()`
-- <b>Debug:</b> `debug!()` [`dbg!()` was used but conflicts with other crates]
+- <b>Debug:</b> `debug!()`
 - <b>Info:</b> `info!()`
 - <b>Warning:</b> `warn!()` or `warning!()`
 - <b>Error:</b> `error!()`
 - <b>Critical:</b> `critical!()` or `crit!()`
+- <b>Diagnostic:</b> `diagnostic!()` or `diag!()`
 
 Quick setup for outputting to terminal:
 ```rust
@@ -77,7 +78,17 @@ fn main() {
     critical!("This is a critical message");
 }
 ```
+`Debug` and `Diagnostic` levels are Debug build only and will not be compiled in release builds
+```rust
 
+use logfather::*;
+
+fn main() {
+    debug!("This is a debug message");
+    diag!("This is a diagnostic message"); 
+    diagnostic!("This will not output for release builds");
+}
+```
 ## License
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 

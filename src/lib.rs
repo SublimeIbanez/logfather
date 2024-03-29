@@ -14,7 +14,7 @@
 //! To start using Logfather, add the following to your `Cargo.toml`:
 //! ```toml
 //! [dependencies]
-//! logfather = "0.2.4"
+//! logfather = "0.2.5"
 //! ```
 //! - Minimum supported Rust version: `1.60.0`
 //! 
@@ -75,6 +75,17 @@
 //!     debug!("This is a debug message");
 //!     warning!("This is a warning message"); // Will be ignored
 //!     critical!("This is a critical message");
+//! }
+//! ```
+//! `Debug` and `Diagnostic` levels are Debug build only and will not be compiled in release builds
+//! ```rust
+//! 
+//! use logfather::*;
+//! 
+//! fn main() {
+//!     debug!("This is a debug message");
+//!     diag!("This is a diagnostic message"); 
+//!     diagnostic!("This will not output for release builds");
 //! }
 //! ```
 
