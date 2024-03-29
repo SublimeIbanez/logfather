@@ -1,8 +1,8 @@
 use chrono::{prelude::Local, Utc};
+use dekor::*;
 use lazy_static::lazy_static;
 use simplicio::*;
 use std::io::Write;
-use dekor::*;
 
 // TODO:
 // 1. Implement advanced error handling for file operations
@@ -17,7 +17,6 @@ use dekor::*;
 lazy_static! {
     static ref LOGGER: std::sync::RwLock<Logger> = std::sync::RwLock::new(Logger::new());
 }
-
 
 /// Replaces the current global logger instance with a new one.
 ///
@@ -126,13 +125,14 @@ impl Logger {
             timezone: TimeZone::Local,
             timestamp_format: s!("%Y-%m-%d %H:%M:%S"),
             styles: map!(
-                Level::Trace    => vec![Style::FGPurple],
-                Level::Debug    => vec![Style::FGBlue],
-                Level::Info     => vec![Style::FGGreen],
-                Level::Warning  => vec![Style::FGYellow],
-                Level::Error    => vec![Style::FGRed],
-                Level::Critical => vec![Style::Bold, Style::FGRed],
-                Level::None     => vec![],
+                Level::Trace        => vec![Style::FGPurple],
+                Level::Debug        => vec![Style::FGBlue],
+                Level::Info         => vec![Style::FGGreen],
+                Level::Warning      => vec![Style::FGYellow],
+                Level::Error        => vec![Style::FGRed],
+                Level::Critical     => vec![Style::Bold, Style::FGRed],
+                Level::Diagnostic   => vec![Style::Bold, Style::FGCyan],
+                Level::None         => vec![],
             ),
         }
     }
@@ -412,7 +412,7 @@ impl Logger {
     /// use logfather::*;
     ///
     /// let mut logger = Logger::new();
-    /// logger.remove_style(Level::Info, Style::BGBlue); 
+    /// logger.remove_style(Level::Info, Style::BGBlue);
     /// ```
     pub fn remove_style(&mut self, level: Level, style: Style) -> Self {
         let styles = self.styles.get_mut(&level).expect("Magic has occured");
@@ -452,11 +452,12 @@ impl Logger {
 /// # Variants
 ///
 /// - `Trace`: Used for standard output - lowest level.
-/// - `Debug`: Used for debug messages.
+/// - `Debug`: Used for debug messages -- will not compile for release builds.
 /// - `Info`: Used for informational messages.
 /// - `Warning`: Used for warning messages.
 /// - `Error`: Used for error messages.
 /// - `Critical`: Used for critical error messages that might require immediate attention.
+/// - `Diagnostic`: Used to bypass all filtering -- will not compile for release builds.
 /// - `None`: Special level used to disable logging.
 ///
 /// # Values:
@@ -479,19 +480,21 @@ pub enum Level {
     Warning = 3,
     Error = 4,
     Critical = 5,
+    Diagnostic = 245,
     None = 255,
 }
 
 impl std::fmt::Display for Level {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            Level::Trace => write!(f,"TRACE"),
-            Level::Debug => write!(f,"DEBUG"),
-            Level::Info => write!(f,"INFO"),
-            Level::Warning => write!(f,"WARNING"),
-            Level::Error => write!(f,"ERROR"),
-            Level::Critical => write!(f,"CRITICAL"),
-            Level::None => write!(f,"NONE"),
+            Level::Trace => write!(f, "TRACE"),
+            Level::Debug => write!(f, "DEBUG"),
+            Level::Info => write!(f, "INFO"),
+            Level::Warning => write!(f, "WARNING"),
+            Level::Error => write!(f, "ERROR"),
+            Level::Critical => write!(f, "CRITICAL"),
+            Level::Diagnostic => write!(f, "DIAGNOSTIC"),
+            Level::None => write!(f, "NONE"),
         }
     }
 }
@@ -518,7 +521,6 @@ pub enum TimeZone {
 }
 
 // ##################################################################### Log Definition #####################################################################
-
 
 /// Logs a message with the specified log level and module path.
 ///
@@ -548,22 +550,23 @@ pub fn log(level: Level, module_path: &str, args: std::fmt::Arguments) {
         return;
     }
 
-    let message = format!("{}",args);
+    let message = format!("{}", args);
 
     //Get the time
     let time = match logger.timezone {
         TimeZone::Local => {
             let now = Local::now();
             s!(now.format(&logger.timestamp_format))
-        },
+        }
         TimeZone::Utc => {
             let now = Utc::now();
             s!(now.format(&logger.timestamp_format))
-        },
+        }
     };
 
     //Replace the relevant sections in the format
-    let log_format = logger.log_format
+    let log_format = logger
+        .log_format
         .replace("{timestamp}", &time)
         .replace("{module_path}", module_path)
         .replace("{message}", &message);
@@ -574,7 +577,11 @@ pub fn log(level: Level, module_path: &str, args: std::fmt::Arguments) {
         let mut path = logger.path.unwrap();
 
         if path.is_empty() {
-            path = std::env::current_dir().unwrap().to_str().unwrap().to_string();
+            path = std::env::current_dir()
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .to_string();
             path += ".logger";
         }
 
@@ -587,7 +594,7 @@ pub fn log(level: Level, module_path: &str, args: std::fmt::Arguments) {
 
         let file = match file {
             Ok(f) => f,
-            Err(_e) => { std::fs::File::create(path).expect("Could not create file") },
+            Err(_e) => std::fs::File::create(path).expect("Could not create file"),
         };
 
         //Output-specific level replacement
@@ -597,7 +604,9 @@ pub fn log(level: Level, module_path: &str, args: std::fmt::Arguments) {
         let file_mutex = std::sync::Mutex::new(file);
         {
             let mut file = file_mutex.lock().unwrap();
-            match writeln!(file, "{}", format) { _ => () }  //Silent error handling 
+            match writeln!(file, "{}", format) {
+                _ => (),
+            } //Silent error handling
         }
     }
 
@@ -605,25 +614,19 @@ pub fn log(level: Level, module_path: &str, args: std::fmt::Arguments) {
     if logger.terminal_output && !logger.terminal_ignore.contains(&level) {
         //Set color
         let styles = logger.styles.get(&level).unwrap();
-        
 
         //Output-specific level replacement
         // let format = log_format.replace(
         //     "{level}", &format!("{}{}{}", level_output, level.to_string(), TextColor::Reset.to_string())
         // );
-        let format = log_format.replace(
-            "{level}", &style(styles.clone(), level)
-        );
+        let format = log_format.replace("{level}", &style(styles.clone(), level));
 
         //Print to the terminal
         println!("{}", format);
-
     }
 }
 
-
 // ##################################################################### Macro Definitions #####################################################################
-
 
 /// Logs a message for tracing - very low priority.
 ///
@@ -632,7 +635,7 @@ pub fn log(level: Level, module_path: &str, args: std::fmt::Arguments) {
 /// ``` no_run
 /// use logfather::trace;
 ///
-/// trace!("This is a debug message");
+/// trace!("This is a traced message");
 /// ```
 #[macro_export]
 macro_rules! trace {
@@ -641,7 +644,7 @@ macro_rules! trace {
     }};
 }
 
-/// Logs a message for debugging.
+/// Logs a message for debugging and will be ignored on release builds.
 ///
 /// # Example
 ///
@@ -652,9 +655,12 @@ macro_rules! trace {
 /// ```
 #[macro_export]
 macro_rules! debug {
-    ($($arg:tt)*) => {{
+    ($($arg:tt)*) => {
+        #[cfg(debug_assertions)]
+        {
         $crate::log($crate::Level::Debug, module_path!(), format_args!($($arg)*))
-    }};
+        }
+    };
 }
 
 /// Logs an informational message.
@@ -763,9 +769,45 @@ macro_rules! crit {
     }};
 }
 
+/// Logs a diagnostic message and ignores filters -- debug builds only.
+///
+/// # Example
+///
+/// ``` no_run
+/// use logfather::diagnostic;
+///
+/// diagnostic!("This is a critical message");
+/// ```
+#[macro_export]
+macro_rules! diagnostic {
+    ($($arg:tt)*) => {
+        #[cfg(debug_assertions)]
+        {
+            $crate::log($crate::Level::Diagnostic, module_path!(), format_args!($($arg)*))
+        }
+    };
+}
+
+/// Logs a diagnostic message and ignores filters -- debug builds only.
+///
+/// # Example
+///
+/// ``` no_run
+/// use logfather::diag;
+///
+/// diag!("This is a critical message");
+/// ```
+#[macro_export]
+macro_rules! diag {
+    ($($arg:tt)*) => {
+        #[cfg(debug_assertions)]
+        {
+            $crate::log($crate::Level::Diagnostic, module_path!(), format_args!($($arg)*))
+        }
+    };
+}
 
 // ##################################################################### Macro Definitions #####################################################################
-
 
 #[cfg(test)]
 mod tests {
@@ -804,7 +846,8 @@ mod tests {
         let mut logger = Logger::new();
         logger.log_format("{level} - {message}");
 
-        let formatted_message = logger.log_format
+        let formatted_message = logger
+            .log_format
             .replace("{level}", "INFO")
             .replace("{message}", "Test message");
 
@@ -816,8 +859,14 @@ mod tests {
         let mut logger = Logger::new();
 
         // Initially, terminal output is enabled, and file output is disabled.
-        assert!(logger.terminal_output, "Terminal output should be enabled by default");
-        assert!(!logger.file_output, "File output should be disabled by default");
+        assert!(
+            logger.terminal_output,
+            "Terminal output should be enabled by default"
+        );
+        assert!(
+            !logger.file_output,
+            "File output should be disabled by default"
+        );
 
         // Enable file output and disable terminal output.
         logger.file(true);
@@ -833,9 +882,18 @@ mod tests {
         logger.ignore(Level::Debug);
         logger.ignore(Level::Warning);
 
-        assert!(logger.ignore.contains(&Level::Debug), "Debug level should be ignored");
-        assert!(logger.ignore.contains(&Level::Warning), "Warning level should be ignored");
-        assert!(!logger.ignore.contains(&Level::Error), "Error level should not be ignored");
+        assert!(
+            logger.ignore.contains(&Level::Debug),
+            "Debug level should be ignored"
+        );
+        assert!(
+            logger.ignore.contains(&Level::Warning),
+            "Warning level should be ignored"
+        );
+        assert!(
+            !logger.ignore.contains(&Level::Error),
+            "Error level should not be ignored"
+        );
     }
 
     #[test]
@@ -844,6 +902,9 @@ mod tests {
         logger.style(Level::Info, vec![Style::FGGreen, Style::Bold]);
 
         let styles = logger.styles(Level::Info);
-        assert!(styles.contains(&Style::FGGreen) && styles.contains(&Style::Bold), "Info level should have green and bold styles");
+        assert!(
+            styles.contains(&Style::FGGreen) && styles.contains(&Style::Bold),
+            "Info level should have green and bold styles"
+        );
     }
 }

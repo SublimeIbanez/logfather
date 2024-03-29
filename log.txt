@@ -1,6 +1,8 @@
-[2024-02-07 19:32:46 DEBUG rust_out] This is a debug message
-[2024-02-07 19:32:46 CRITICAL rust_out] This is a critical message
-[2024-02-07 19:33:21 ERROR rust_out] This is an error message
-[2024-02-07 19:33:21 CRITICAL rust_out] This is a critical message
-[2024-02-07 19:33:21 DEBUG rust_out] This is a debug message
-[2024-02-07 19:33:21 CRITICAL rust_out] This is a critical message
+[2024-03-29 13:14:35 DEBUG rust_out] This is a debug message
+[2024-03-29 13:14:35 CRITICAL rust_out] This is a critical message
+[2024-03-29 13:14:35 ERROR rust_out] This is an error message
+[2024-03-29 13:14:36 CRITICAL rust_out] This is a critical message[2024-03-29 13:14:36 ERROR rust_out] This is an error message
+
+[2024-03-29 13:14:36 CRITICAL rust_out] This is a critical message[2024-03-29 13:14:36 DEBUG rust_out] This is a debug message
+
+[2024-03-29 13:14:36 CRITICAL rust_out] This is a critical message
