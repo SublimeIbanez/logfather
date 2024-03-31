@@ -17,7 +17,7 @@ To start using Logfather, add the following to your `Cargo.toml`:
 logfather = "0.2.5"
 ```
 - Minimum supported Rust version: `1.60.0`
-- Check out the [crates.io](https://crates.io/crates/logfather)
+- Check out [crates.io](https://crates.io/crates/logfather)
 - All the information you'll need in the [Documentation](https://docs.rs/logfather/0.2.5/logfather/)
 
 ## Usage
@@ -96,3 +96,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Contributing
 ._. why would you do this?
+- Please open an issue with [FEATURE REQUEST] in the title if you wish to
+- If you wish to contribute, issues and feature requests are a great way to do so. If you wish to fork and open a PR with changes, please provide information on what is being changed in great detail. This is my own pet project, so I will be opinionated, but I'm not against improvements or suggestions for improvements.
