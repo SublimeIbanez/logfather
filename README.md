@@ -6,7 +6,7 @@ A simple, lightweight, and easy-to-use logging system. It allows for detailed lo
 - Easy to set up and use
 - Supports logging to both the terminal and log files
 - Customizable log message format
-- Configurable log levels (Info, Debug, Warning, Error, and Critical)
+- Configurable log levels (Info, Debug, Warning, Error, Critical, and Diagnostic)
 - Configurable level display including colors, highlights, and styles
 - Thread-safe
 
@@ -17,6 +17,8 @@ To start using Logfather, add the following to your `Cargo.toml`:
 logfather = "0.2.5"
 ```
 - Minimum supported Rust version: `1.60.0`
+- Check out the [crates.io](https://crates.io/crates/logfather)
+- All the information you'll need in the [Documentation](https://docs.rs/logfather/0.2.5/logfather/)
 
 ## Usage
 Macros:
