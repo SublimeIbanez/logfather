@@ -6,7 +6,7 @@
 //! - Easy to set up and use
 //! - Supports logging to both the terminal and log files
 //! - Customizable log message format
-//! - Configurable log levels (Info, Debug, Warning, Error, and Critical)
+//! - Configurable log levels (Info, Debug, Warning, Error, Critical, and Diagnostic)
 //! - Configurable level display including colors, highlights, and styles
 //! - Thread-safe
 //! 
@@ -15,6 +15,7 @@
 //! ```toml
 //! [dependencies]
 //! logfather = "0.2.5"
+//! - Check out [crates.io](https://crates.io/crates/logfather)
 //! ```
 //! - Minimum supported Rust version: `1.60.0`
 //! 
