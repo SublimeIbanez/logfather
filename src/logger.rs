@@ -586,7 +586,7 @@ pub fn log(level: Level, module_path: &str, args: std::fmt::Arguments) {
         }
 
         // Check if the path contains directory separators indicating multiple directories
-        if let Some(parent) = PathBuf::from(&path).parent() {
+        if let Some(parent) = Path::new(&path).parent() {
             std::fs::create_dir_all(parent).expect("failed to create missing sub-directories");
         }
 
