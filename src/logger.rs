@@ -585,9 +585,9 @@ pub fn log(level: Level, module_path: &str, args: std::fmt::Arguments) {
             path += ".logger";
         }
 
-        if path.contains(['\\', '/']) {
-            let p = PathBuf::from(&path);
-            std::fs::create_dir_all(p.parent().unwrap()).expect("failed to create missing sub-directories");
+        // Check if the path contains directory separators indicating multiple directories
+        if let Some(parent) = Path::new(&path).parent() {
+            std::fs::create_dir_all(parent).expect("failed to create missing sub-directories");
         }
 
         let file = std::fs::OpenOptions::new()
