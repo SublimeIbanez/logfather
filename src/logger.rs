@@ -2,7 +2,7 @@ use chrono::{prelude::Local, Utc};
 use dekor::*;
 use lazy_static::lazy_static;
 use simplicio::*;
-use std::io::Write;
+use std::{io::Write, path::PathBuf};
 
 // TODO:
 // 1. Implement advanced error handling for file operations
@@ -583,6 +583,11 @@ pub fn log(level: Level, module_path: &str, args: std::fmt::Arguments) {
                 .unwrap()
                 .to_string();
             path += ".logger";
+        }
+
+        // Check if the path contains directory separators indicating multiple directories
+        if let Some(parent) = PathBuf::from(&path).parent() {
+            std::fs::create_dir_all(parent).expect("failed to create missing sub-directories");
         }
 
         let file = std::fs::OpenOptions::new()
