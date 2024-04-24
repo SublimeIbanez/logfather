@@ -81,6 +81,20 @@ fn main() {
     critical!("This is a critical message");
 }
 ```
+Handle erroneous values gracefully with the `r_` prepended macros
+```rust
+use logfather::*;
+
+fn main() {
+    let mut logger = Logger::new();
+
+    match r_info!("This will return a Result<(), LogfatherError>") {
+        Ok(_) => println!("Successfully logged output"),
+        Err(e) => println!("Error logging output: {e}"),
+    }
+}
+```
+
 `Debug` and `Diagnostic` levels are Debug build only and will not be compiled in release builds
 ```rust
 

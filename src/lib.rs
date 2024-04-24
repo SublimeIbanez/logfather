@@ -80,6 +80,20 @@
 //!     critical!("This is a critical message");
 //! }
 //! ```
+//! Handle erroneous values gracefully with the `r_` prepended macros
+//! 
+//! ```rust
+//! use logfather::*;
+//! 
+//! fn main() {
+//!     let mut logger = Logger::new();
+//! 
+//!     match r_info!("This will return a Result<(), LogfatherError>") {
+//!         Ok(_) => println!("Successfully logged output"),
+//!         Err(e) => println!("Error logging output: {e}"),
+//!     }
+//! }
+//! ```
 //! `Debug` and `Diagnostic` levels are Debug build only and will not be compiled in release builds
 //! ```rust
 //! 
@@ -94,13 +108,14 @@
 
 
 pub mod logger;
+pub mod error;
 
 pub use dekor::Style;
 pub use logger::Logger;
 pub use logger::Level;
 pub use logger::TimeZone;
-pub use logger::LogfatherError;
-pub use logger::LogfatherResult;
+pub use error::LogfatherError;
+pub use error::LogfatherResult;
 pub use logger::log;
 pub use logger::result_log;
 

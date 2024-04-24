@@ -1,8 +1,9 @@
+use crate::error::*;
 use chrono::{prelude::Local, Utc};
 use dekor::*;
 use lazy_static::lazy_static;
 use simplicio::*;
-use std::{io::Write, path::PathBuf, sync::RwLockReadGuard};
+use std::{io::Write, path::PathBuf};
 
 // TODO:
 // 1. Implement advanced error handling for file operations
@@ -89,7 +90,6 @@ pub struct Logger {
     pub(crate) timezone: TimeZone,
     pub(crate) timestamp_format: String,
     pub(crate) styles: std::collections::HashMap<Level, Vec<Style>>,
-    //TODO: add other fields
 }
 
 impl Default for Logger {
@@ -634,81 +634,6 @@ pub fn log(level: Level, module_path: &str, args: std::fmt::Arguments) {
     }
 }
 
-//####################################################################--Error
-
-/// Defines the types of errors that can occur for `Logfather`.
-///
-/// # Variants
-/// - `LoggerAccessError(String)`: Represents an error that occurs when access to the logger is denied or fails.
-/// - `FileAccessError(String)`: Indicates a problem accessing a file needed for logging.
-/// - `IoError(std::io::Error)`: Encompasses general input/output errors that may occur during logging operations.
-///
-/// # Examples
-/// Handling different kinds of errors:
-///
-/// ```rust
-/// use logfather::*;
-///
-///
-/// let result = result_log(Level::Info, "some_module", format_args!("Hello, world!"));
-/// match result {
-///     Ok(_) => println!("Logged successfully"),
-///     Err(e)=> println!("Logger access error: {e}"),
-/// }
-/// ```
-///
-/// # Implements
-/// - `std::fmt::Display` and `std::error::Error`.
-#[derive(Debug)]
-pub enum LogfatherError {
-    LoggerAccessError(String),
-    FileAccessError(String),
-    IoError(std::io::Error),
-}
-
-impl std::fmt::Display for LogfatherError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            LogfatherError::LoggerAccessError(err) => write!(f, "Failed to access logger: {err}"),
-            LogfatherError::FileAccessError(err) => write!(f, "Failed to access file: {err}"),
-            LogfatherError::IoError(err) => write!(f, "I/O Error: {err}"),
-        }
-    }
-}
-
-// Error
-impl std::error::Error for LogfatherError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        return match self {
-            LogfatherError::IoError(err) => err.source(),
-            _ => None,
-        };
-    }
-}
-
-// RwLock
-impl From<std::sync::PoisonError<RwLockReadGuard<'_, Logger>>> for LogfatherError {
-    fn from(value: std::sync::PoisonError<RwLockReadGuard<'_, Logger>>) -> Self {
-        return Self::LoggerAccessError(value.to_string());
-    }
-}
-
-// Mutex
-impl From<std::sync::PoisonError<std::sync::MutexGuard<'_, std::fs::File>>> for LogfatherError {
-    fn from(value: std::sync::PoisonError<std::sync::MutexGuard<'_, std::fs::File>>) -> Self {
-        return Self::FileAccessError(value.to_string());
-    }
-}
-
-// IO Errors
-impl From<std::io::Error> for LogfatherError {
-    fn from(value: std::io::Error) -> Self {
-        return Self::IoError(value);
-    }
-}
-
-pub type LogfatherResult<T> = Result<T, LogfatherError>;
-
 /// Logs a message with the specified log level and module path.
 ///
 /// The log message is formatted according to the logger's configuration and output to the designated targets (file and/or terminal).
@@ -729,11 +654,7 @@ pub type LogfatherResult<T> = Result<T, LogfatherError>;
 /// ```
 ///
 /// Note: In practice, prefer using the provided macros (`info!`, `warning!`, `error!`, `critical!`) for logging.
-pub fn result_log(
-    level: Level,
-    mod_path: &str,
-    args: std::fmt::Arguments,
-) -> Result<(), LogfatherError> {
+pub fn result_log(level: Level, mod_path: &str, args: std::fmt::Arguments) -> LogfatherResult {
     //Grab a clone of the logger to not hold up any other potential logging threads
     let logger = LOGGER.read().map_err(LogfatherError::from)?.clone();
 
@@ -1034,7 +955,7 @@ macro_rules! r_debug {
         }
         #[cfg(not(debug_assertions))]
         {
-            Ok(())
+            Ok::<(), LogfatherError>(())
         }
     }};
 }
@@ -1184,7 +1105,7 @@ macro_rules! r_diagnostic {
         }
         #[cfg(not(debug_assertions))]
         {
-            Ok(())
+            Ok::<(), LogfatherError>(())
         }
     }};
 }
@@ -1210,7 +1131,7 @@ macro_rules! r_diag {
         }
         #[cfg(not(debug_assertions))]
         {
-            Ok(())
+            Ok::<(), LogfatherError>(())
         }
     }};
 }
