@@ -36,11 +36,8 @@ Quick setup for outputting to terminal:
 
 use logfather::*;
 
-fn main() {
-    let mut logger = Logger::new(); //Terminal output is enabled by default
-
-    error!("This is an error message");
-}
+let mut logger = Logger::new(); //Terminal output is enabled by default
+error!("This is an error message");
 ```
 
 
@@ -49,62 +46,52 @@ Setting up for only file output with specific error levels to be written:
 
 use logfather::*;
 
-fn main() {
-    let mut logger = Logger::new();
-    logger.terminal(false); // Disable terminal output 
-    logger.file(true); // Enable file output
-    logger.path("log.txt"); // Set the path for file logging
-    logger.level(Level::Error); // Set the minimum level
+let mut logger = Logger::new();
+logger.terminal(false); // Disable terminal output 
+logger.file(true); // Enable file output
+logger.path("log.txt"); // Set the path for file logging
+logger.level(Level::Error); // Set the minimum level
 
-    info!("This is an info message"); // Will not be written to file
-    debug!("This is a debug message"); // Will not be written to file
-    warning!("This is a warning message"); // Will not be written to file
+info!("This is an info message"); // Will not be written to file
+debug!("This is a debug message"); // Will not be written to file
+warning!("This is a warning message"); // Will not be written to file
 
-    error!("This is an error message"); // Will be written to file
-    critical!("This is a critical message"); // Will be written to file
-}
+error!("This is an error message"); // Will be written to file
+critical!("This is a critical message"); // Will be written to file
 ```
 Set up for both terminal and file output capturing every level except warning
 ```rust
-
 use logfather::*;
 
-fn main() {
-    // Supports the builder pattern
-    let mut logger = Logger::new() // Terminal output is enabled by default
-        .file(true) // Enable file output
-        .path("log.txt") // Set the path for file logging
-        .ignore(Level::Warning); // Set the specific level to ignore
+// Supports the builder pattern
+let mut logger = Logger::new() // Terminal output is enabled by default
+    .file(true) // Enable file output
+    .path("log.txt") // Set the path for file logging
+    .ignore(Level::Warning); // Set the specific level to ignore
 
-    debug!("This is a debug message");
-    warning!("This is a warning message"); // Will be ignored
-    critical!("This is a critical message");
-}
+debug!("This is a debug message");
+warning!("This is a warning message"); // Will be ignored
+critical!("This is a critical message");
 ```
 Handle erroneous values gracefully with the `r_` prepended macros
 ```rust
 use logfather::*;
 
-fn main() {
-    let mut logger = Logger::new();
+let mut logger = Logger::new();
 
-    match r_info!("This will return a Result<(), LogfatherError>") {
-        Ok(_) => println!("Successfully logged output"),
-        Err(e) => println!("Error logging output: {e}"),
-    }
+match r_info!("This will return a Result<(), LogfatherError>") {
+    Ok(_) => println!("Successfully logged output"),
+    Err(e) => println!("Error logging output: {e}"),
 }
 ```
 
 `Debug` and `Diagnostic` levels are Debug build only and will not be compiled in release builds
 ```rust
-
 use logfather::*;
 
-fn main() {
-    debug!("This is a debug message");
-    diag!("This is a diagnostic message"); 
-    diagnostic!("This will not output for release builds");
-}
+debug!("This is a debug message");
+diag!("This is a diagnostic message"); 
+diagnostic!("This will not output for release builds");
 ```
 ## License
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

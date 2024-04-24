@@ -598,7 +598,6 @@ pub fn log(level: Level, module_path: &str, args: std::fmt::Arguments) {
             }
 
             let file = std::fs::OpenOptions::new()
-                .write(true)
                 .create(true)
                 .read(true)
                 .append(true)
