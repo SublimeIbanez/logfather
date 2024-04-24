@@ -2,7 +2,7 @@ use chrono::{prelude::Local, Utc};
 use dekor::*;
 use lazy_static::lazy_static;
 use simplicio::*;
-use std::{io::Write, path::PathBuf};
+use std::{io::Write, path::PathBuf, sync::RwLockReadGuard};
 
 // TODO:
 // 1. Implement advanced error handling for file operations
@@ -76,9 +76,9 @@ pub fn set_logger(new_logger: &Logger) {
 /// logger.timestamp_format("%Y-%m-%d %H:%M:%S"); // Set a custom format for timestamps
 /// logger.add_style(Level::Info, Style::Underline); // Set the style for INFO to Underlined in terminal output
 /// ```
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Logger {
-    pub(crate) path: Option<String>,
+    pub(crate) path: Option<PathBuf>,
     pub(crate) terminal_output: bool,
     pub(crate) file_output: bool,
     pub(crate) output_level: Level,
@@ -90,6 +90,12 @@ pub struct Logger {
     pub(crate) timestamp_format: String,
     pub(crate) styles: std::collections::HashMap<Level, Vec<Style>>,
     //TODO: add other fields
+}
+
+impl Default for Logger {
+    fn default() -> Self {
+        return Self::new();
+    }
 }
 
 impl Logger {
@@ -153,7 +159,7 @@ impl Logger {
     /// logger.path("/var/log/my_app.log");
     /// ```
     pub fn path(&mut self, path: &str) -> Self {
-        self.path = Some(s!(path));
+        self.path = Some(PathBuf::from(path));
         set_logger(self);
         return self.to_owned();
     }
@@ -300,7 +306,7 @@ impl Logger {
     /// ```
     pub fn log_format(&mut self, format: &str) -> Self {
         self.log_format = s!(format);
-        set_logger(&self);
+        set_logger(self);
         return self.to_owned();
     }
 
@@ -319,7 +325,7 @@ impl Logger {
     /// ```
     pub fn timezone(&mut self, timezone: TimeZone) -> Self {
         self.timezone = timezone;
-        set_logger(&self);
+        set_logger(self);
         return self.to_owned();
     }
 
@@ -396,7 +402,7 @@ impl Logger {
     pub fn add_style(&mut self, level: Level, style: Style) -> Self {
         let styles = self.styles.get_mut(&level).expect("Magic has occured");
         styles.push(style);
-        set_logger(&self);
+        set_logger(self);
         return self.to_owned();
     }
 
@@ -417,7 +423,7 @@ impl Logger {
     pub fn remove_style(&mut self, level: Level, style: Style) -> Self {
         let styles = self.styles.get_mut(&level).expect("Magic has occured");
         styles.retain(|s| *s != style);
-        set_logger(&self);
+        set_logger(self);
         return self.to_owned();
     }
 
@@ -572,63 +578,239 @@ pub fn log(level: Level, module_path: &str, args: std::fmt::Arguments) {
         .replace("{message}", &message);
 
     //Only write to the file if both of these are true
-    if logger.path.is_some() && logger.file_output && !logger.file_ignore.contains(&level) {
-        //Can safely unwrap
-        let mut path = logger.path.unwrap();
+    if logger.file_output && !logger.file_ignore.contains(&level) {
+        if let Some(mut path) = logger.path {
+            // Handle empty path
+            if path.as_os_str().is_empty() {
+                path = std::env::current_dir()
+                    .unwrap_or_else(|_| panic!(
+                        "{}\n{}",
+                        "ERROR: No path given. Attempted to write to current directory.",
+                        "  FAILURE: insufficient permissions or the current directory does not exist."
+                    ));
+                // Append default file name
+                path.push(".logger");
+            }
 
-        if path.is_empty() {
-            path = std::env::current_dir()
-                .unwrap()
-                .to_str()
-                .unwrap()
-                .to_string();
-            path += ".logger";
-        }
+            // Check if the path contains directory separators indicating multiple directories
+            if let Some(parent) = PathBuf::from(&path).parent() {
+                std::fs::create_dir_all(parent).expect("failed to create missing sub-directories");
+            }
 
-        // Check if the path contains directory separators indicating multiple directories
-        if let Some(parent) = PathBuf::from(&path).parent() {
-            std::fs::create_dir_all(parent).expect("failed to create missing sub-directories");
-        }
+            let file = std::fs::OpenOptions::new()
+                .write(true)
+                .create(true)
+                .read(true)
+                .append(true)
+                .open(&path);
 
-        let file = std::fs::OpenOptions::new()
-            .write(true)
-            .create(true)
-            .read(true)
-            .append(true)
-            .open(&path);
+            let file = match file {
+                Ok(f) => f,
+                Err(_e) => std::fs::File::create(path).expect("Could not create file"),
+            };
 
-        let file = match file {
-            Ok(f) => f,
-            Err(_e) => std::fs::File::create(path).expect("Could not create file"),
-        };
+            //Output-specific level replacement
+            let format = log_format.replace("{level}", &s!(level));
 
-        //Output-specific level replacement
-        let format = log_format.replace("{level}", &s!(level));
-
-        //Lock down the file while it's being written to in case multithreaded application
-        let file_mutex = std::sync::Mutex::new(file);
-        {
-            let mut file = file_mutex.lock().unwrap();
-            match writeln!(file, "{}", format) {
-                _ => (),
-            } //Silent error handling
+            //Lock down the file while it's being written to in case multithreaded application
+            let file_mutex = std::sync::Mutex::new(file);
+            {
+                let mut file = file_mutex.lock().unwrap();
+                _ = writeln!(file, "{}", format);
+            }
         }
     }
 
     //Terminal output
     if logger.terminal_output && !logger.terminal_ignore.contains(&level) {
-        //Set color
+        // Set color
         let styles = logger.styles.get(&level).unwrap();
 
-        //Output-specific level replacement
-        // let format = log_format.replace(
-        //     "{level}", &format!("{}{}{}", level_output, level.to_string(), TextColor::Reset.to_string())
-        // );
+        // Output-specific level replacement
         let format = log_format.replace("{level}", &style(styles.clone(), level));
 
         //Print to the terminal
         println!("{}", format);
     }
+}
+
+//####################################################################--Error
+
+/// Defines the types of errors that can occur for `Logfather`.
+///
+/// # Variants
+/// - `LoggerAccessError(String)`: Represents an error that occurs when access to the logger is denied or fails.
+/// - `FileAccessError(String)`: Indicates a problem accessing a file needed for logging.
+/// - `IoError(std::io::Error)`: Encompasses general input/output errors that may occur during logging operations.
+///
+/// # Examples
+/// Handling different kinds of errors:
+///
+/// ```rust
+/// use logfather::*;
+///
+///
+/// let result = result_log(Level::Info, "some_module", format_args!("Hello, world!"));
+/// match result {
+///     Ok(_) => println!("Logged successfully"),
+///     Err(e)=> println!("Logger access error: {e}"),
+/// }
+/// ```
+///
+/// # Implements
+/// - `std::fmt::Display` and `std::error::Error`.
+#[derive(Debug)]
+pub enum LogfatherError {
+    LoggerAccessError(String),
+    FileAccessError(String),
+    IoError(std::io::Error),
+}
+
+impl std::fmt::Display for LogfatherError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            LogfatherError::LoggerAccessError(err) => write!(f, "Failed to access logger: {err}"),
+            LogfatherError::FileAccessError(err) => write!(f, "Failed to access file: {err}"),
+            LogfatherError::IoError(err) => write!(f, "I/O Error: {err}"),
+        }
+    }
+}
+
+// Error
+impl std::error::Error for LogfatherError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        return match self {
+            LogfatherError::IoError(err) => err.source(),
+            _ => None,
+        };
+    }
+}
+
+// RwLock
+impl From<std::sync::PoisonError<RwLockReadGuard<'_, Logger>>> for LogfatherError {
+    fn from(value: std::sync::PoisonError<RwLockReadGuard<'_, Logger>>) -> Self {
+        return Self::LoggerAccessError(value.to_string());
+    }
+}
+
+// Mutex
+impl From<std::sync::PoisonError<std::sync::MutexGuard<'_, std::fs::File>>> for LogfatherError {
+    fn from(value: std::sync::PoisonError<std::sync::MutexGuard<'_, std::fs::File>>) -> Self {
+        return Self::FileAccessError(value.to_string());
+    }
+}
+
+// IO Errors
+impl From<std::io::Error> for LogfatherError {
+    fn from(value: std::io::Error) -> Self {
+        return Self::IoError(value);
+    }
+}
+
+pub type LogfatherResult<T> = Result<T, LogfatherError>;
+
+/// Logs a message with the specified log level and module path.
+///
+/// The log message is formatted according to the logger's configuration and output to the designated targets (file and/or terminal).
+/// - Outputs a `LogfatherResult` in the event of failure instead of console outputs or panics.
+///
+/// # Arguments
+/// * `level` - The severity level of the log message.
+/// * `module_path` - The module path where the log message originates.
+/// * `message` - The log message broken into fragments.
+///
+/// # Examples
+///
+/// ``` no_run
+/// use logfather::*;
+///
+/// // Example of manually logging an error message
+/// let result = result_log(Level::Error, module_path!(), format_args!("An error occurred"));
+/// ```
+///
+/// Note: In practice, prefer using the provided macros (`info!`, `warning!`, `error!`, `critical!`) for logging.
+pub fn result_log(
+    level: Level,
+    mod_path: &str,
+    args: std::fmt::Arguments,
+) -> Result<(), LogfatherError> {
+    //Grab a clone of the logger to not hold up any other potential logging threads
+    let logger = LOGGER.read().map_err(LogfatherError::from)?.clone();
+
+    //If the level is too low then return
+    if level < logger.output_level || logger.ignore.contains(&level) {
+        return Ok(());
+    }
+
+    let message = format!("{}", args);
+
+    //Get the time
+    let time = match logger.timezone {
+        TimeZone::Local => {
+            let now = Local::now();
+            s!(now.format(&logger.timestamp_format))
+        }
+        TimeZone::Utc => {
+            let now = Utc::now();
+            s!(now.format(&logger.timestamp_format))
+        }
+    };
+
+    //Replace the relevant sections in the format
+    let log_format = logger
+        .log_format
+        .replace("{timestamp}", &time)
+        .replace("{module_path}", mod_path)
+        .replace("{message}", &message);
+
+    //Only write to the file if both of these are true
+    if logger.file_output && !logger.file_ignore.contains(&level) {
+        if let Some(mut path) = logger.path {
+            // Handle empty path
+            if path.as_os_str().is_empty() {
+                // Get the current directory
+                path = std::env::current_dir().map_err(LogfatherError::from)?;
+                // Append default file name
+                path.push(".logger");
+            }
+
+            // Check if the path contains directory separators indicating multiple directories
+            if let Some(parent) = PathBuf::from(&path).parent() {
+                std::fs::create_dir_all(parent).map_err(LogfatherError::from)?;
+            }
+
+            let file = std::fs::OpenOptions::new()
+                .create(true)
+                .read(true)
+                .append(true)
+                .open(&path)
+                .map_err(LogfatherError::from)?;
+
+            //Output-specific level replacement
+            let format = log_format.replace("{level}", &s!(level));
+
+            //Lock down the file while it's being written to in case multithreaded application
+            let file_mutex = std::sync::Mutex::new(file);
+            {
+                let mut file = file_mutex.lock().map_err(LogfatherError::from)?;
+                writeln!(file, "{}", format).map_err(LogfatherError::from)?;
+            }
+        }
+    }
+
+    //Terminal output
+    if logger.terminal_output && !logger.terminal_ignore.contains(&level) {
+        // Set color
+        let styles = logger.styles.get(&level).unwrap();
+
+        // Output-specific level replacement
+        let format = log_format.replace("{level}", &style(styles.clone(), level));
+
+        //Print to the terminal
+        println!("{}", format);
+    }
+
+    return Ok(());
 }
 
 // ##################################################################### Macro Definitions #####################################################################
@@ -812,7 +994,227 @@ macro_rules! diag {
     };
 }
 
-// ##################################################################### Macro Definitions #####################################################################
+/// Logs a message for tracing - very low priority.
+///
+/// # Example
+///
+/// ``` no_run
+/// use logfather::r_trace;
+///
+/// let result = r_trace!("This is a traced message");
+/// if result.is_err() {
+///     println!("The log failed.");
+/// }
+/// ```
+#[macro_export]
+macro_rules! r_trace {
+    ($($arg:tt)*) => {{
+        $crate::result_log($crate::Level::Trace, module_path!(), format_args!($($arg)*))
+    }};
+}
+
+/// Logs a message for debugging and will be ignored on release builds.
+///
+/// # Example
+///
+/// ``` no_run
+/// use logfather::r_debug;
+///
+/// let result = r_debug!("This is a debug message");
+/// if result.is_err() {
+///     println!("The log failed.");
+/// }
+/// ```
+#[macro_export]
+macro_rules! r_debug {
+    ($($arg:tt)*) => {{
+        #[cfg(debug_assertions)]
+        {
+            $crate::result_log($crate::Level::Debug, module_path!(), format_args!($($arg)*))
+        }
+        #[cfg(not(debug_assertions))]
+        {
+            Ok(())
+        }
+    }};
+}
+
+/// Logs an informational message.
+///
+/// # Example
+///
+/// ``` no_run
+/// use logfather::{r_info, LogfatherError};
+///
+/// let result = r_info!("This is an info message");
+/// if result.is_err() {
+///     println!("The log failed.");
+/// }
+/// ```
+#[macro_export]
+macro_rules! r_info {
+    ($($arg:tt)*) => {{
+        $crate::result_log($crate::Level::Info, module_path!(), format_args!($($arg)*))
+    }};
+}
+
+/// Logs a warning message.
+///
+/// # Example
+///
+/// ``` no_run
+/// use logfather::r_warning;
+///
+/// let result = r_warning!("This is a warning message");
+/// if result.is_err() {
+///     println!("The log failed.");
+/// }
+/// ```
+///
+/// This macro simplifies the process of logging a message at the `Warning` level.
+#[macro_export]
+macro_rules! r_warning {
+    ($($arg:tt)*) => {{
+        $crate::result_log($crate::Level::Warning, module_path!(), format_args!($($arg)*))
+    }};
+}
+
+/// Logs a warning message.
+///
+/// # Example
+///
+/// ``` no_run
+/// use logfather::r_warn;
+///
+/// let result = r_warn!("This is a warning message");
+/// if result.is_err() {
+///     println!("The log failed.");
+/// }
+/// ```
+///
+/// This macro simplifies the process of logging a message at the `Warning` level.
+#[macro_export]
+macro_rules! r_warn {
+    ($($arg:tt)*) => {{
+        $crate::result_log($crate::Level::Warning, module_path!(), format_args!($($arg)*))
+    }};
+}
+
+/// Logs an error message.
+///
+/// # Example
+///
+/// ``` no_run
+/// use logfather::r_error;
+///
+/// let result = r_error!("This is an error message");
+/// if result.is_err() {
+///     println!("The log failed.");
+/// }
+/// ```
+///
+/// Use this macro for logging errors, typically when an operation fails or an unexpected condition occurs.
+#[macro_export]
+macro_rules! r_error {
+    ($($arg:tt)*) => {{
+        $crate::result_log($crate::Level::Error, module_path!(), format_args!($($arg)*))
+    }};
+}
+
+/// Logs a critical message.
+///
+/// # Example
+///
+/// ``` no_run
+/// use logfather::r_critical;
+///
+/// let result = r_critical!("This is a critical message");
+/// if result.is_err() {
+///     println!("The log failed.");
+/// }
+/// ```
+///
+/// This macro is intended for critical errors that require immediate attention. Logging at this level typically indicates a serious failure in a component of the application.
+#[macro_export]
+macro_rules! r_critical {
+    ($($arg:tt)*) => {{
+        $crate::result_log($crate::Level::Critical, module_path!(), format_args!($($arg)*))
+    }};
+}
+
+/// Logs a critical message.
+///
+/// # Example
+///
+/// ``` no_run
+/// use logfather::r_crit;
+///
+/// let result = r_crit!("This is a critical message");
+/// if result.is_err() {
+///     println!("The log failed.");
+/// }
+/// ```
+///
+/// This macro is intended for critical errors that require immediate attention. Logging at this level typically indicates a serious failure in a component of the application.
+#[macro_export]
+macro_rules! r_crit {
+    ($($arg:tt)*) => {{
+        $crate::result_log($crate::Level::Critical, module_path!(), format_args!($($arg)*))
+    }};
+}
+
+/// Logs a diagnostic message and ignores filters -- debug builds only.
+///
+/// # Example
+///
+/// ``` no_run
+/// use logfather::r_diagnostic;
+///
+/// let result = r_diagnostic!("This is a critical message");
+/// if result.is_err() {
+///     println!("The log failed.");
+/// }
+/// ```
+#[macro_export]
+macro_rules! r_diagnostic {
+    ($($arg:tt)*) => {{
+        #[cfg(debug_assertions)]
+        {
+            $crate::result_log($crate::Level::Diagnostic, module_path!(), format_args!($($arg)*))
+        }
+        #[cfg(not(debug_assertions))]
+        {
+            Ok(())
+        }
+    }};
+}
+
+/// Logs a diagnostic message and ignores filters -- debug builds only.
+///
+/// # Example
+///
+/// ``` no_run
+/// use logfather::r_diag;
+///
+/// let result = r_diag!("This is a critical message");
+/// if result.is_err() {
+///     println!("The log failed.");
+/// }
+/// ```
+#[macro_export]
+macro_rules! r_diag {
+    ($($arg:tt)*) => {{
+        #[cfg(debug_assertions)]
+        {
+            $crate::result_log($crate::Level::Diagnostic, module_path!(), format_args!($($arg)*))
+        }
+        #[cfg(not(debug_assertions))]
+        {
+            Ok(())
+        }
+    }};
+}
+// ##################################################################### Test #####################################################################
 
 #[cfg(test)]
 mod tests {

@@ -8,27 +8,28 @@ A simple, lightweight, and easy-to-use logging system. It allows for detailed lo
 - Customizable log message format
 - Configurable log levels (Info, Debug, Warning, Error, Critical, and Diagnostic)
 - Configurable level display including colors, highlights, and styles
+- Optional result (prepend `r_`) macros for managed errors
 - Thread-safe
 
 ## Getting Started
 To start using Logfather, add the following to your `Cargo.toml`:
 ```toml
 [dependencies]
-logfather = "0.2.5"
+logfather = "0.2.6"
 ```
-- Minimum supported Rust version: `1.60.0`
+- Minimum supported Rust version: `1.61.0`
 - Check out [crates.io](https://crates.io/crates/logfather)
 - All the information you'll need in the [Documentation](https://docs.rs/logfather/0.2.5/logfather/)
 
 ## Usage
 Macros:
-- <b>Trace:</b> `trace!()`
-- <b>Debug:</b> `debug!()`
-- <b>Info:</b> `info!()`
-- <b>Warning:</b> `warn!()` or `warning!()`
-- <b>Error:</b> `error!()`
-- <b>Critical:</b> `critical!()` or `crit!()`
-- <b>Diagnostic:</b> `diagnostic!()` or `diag!()`
+- <b>Trace:</b> `trace!()` or `r_trace!()`
+- <b>Debug:</b> `debug!()` or `r_debug!()`
+- <b>Info:</b> `info!()` or `r_info!()`
+- <b>Warning:</b> `warn!()`, `warning!()`, `r_warn!()`, or `r_warning!()`
+- <b>Error:</b> `error!()` or `r_error!()`
+- <b>Critical:</b> `critical!()`, `crit!()`, `r_critical!()`, or `r_crit!()`
+- <b>Diagnostic:</b> `diagnostic!()`, `diag!()`, `r_diagnostic!()`, or `r_diag!()`
 
 Quick setup for outputting to terminal:
 ```rust
