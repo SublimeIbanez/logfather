@@ -98,15 +98,18 @@
 
 pub mod logger;
 pub mod error;
+pub mod output;
+pub mod macros;
 
 pub use dekor::Style;
 pub use logger::Logger;
 pub use logger::Level;
 pub use logger::TimeZone;
+pub use logger::OutputDirection;
 pub use error::LogfatherError;
 pub use error::LogfatherResult;
-pub use logger::log;
-pub use logger::result_log;
+pub use output::log;
+pub use output::result_log;
 
 #[doc = include_str!("../README.md")]
 #[cfg(doctest)]
