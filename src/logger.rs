@@ -77,7 +77,7 @@ pub fn set_logger(new_logger: &Logger) {
 /// logger.file_ignore(Level::Error); //Ignores the Error level messages for file output
 /// logger.terminal_ignore(Level::Error); //Ignores the Error level messages for terminal output
 /// logger.log_format("[{timestamp} {level}] {message}"); // Set a custom format for log messages
-/// logger.structured_format("\n{key}: {value}"); // Set custom format for structured log messages
+/// logger.structured_format("\n\t{key}: {value}"); // Set custom format for structured log messages
 /// logger.timestamp_format("%Y-%m-%d %H:%M:%S"); // Set a custom format for timestamps
 /// logger.add_style(Level::Info, Style::Underline); // Set the style for INFO to Underlined in terminal output
 /// ```
@@ -509,6 +509,34 @@ impl Logger {
             .clone();
     }
 
+    /// Sets the format string for log messages in structured logging.
+    ///
+    /// The format string can contain placeholders like `{key}` and `{value}` which will be replaced during logging.
+    ///
+    /// # Arguments
+    /// * `format` - A string slice representing the log message format for structured logs.
+    ///
+    /// # Examples
+    ///
+    /// ``` no_run
+    /// use logfather::*;
+    ///
+    /// let mut logger = Logger::new();
+    /// logger.structured_format("\n\t{key}: {value}"); // Set a custom format for log messages
+    /// ```
+    pub fn structured_format(&mut self, format: &str) -> Self {
+        {
+            LOGGER
+                .write()
+                .expect("Could not get logger for overwrite function.")
+                .log_format = String::from(format);
+        }
+        return LOGGER
+            .read()
+            .expect("Could not return logger clone: log_format")
+            .clone();
+    }
+
     /// Sets the preferred timezone for the log display.
     ///
     /// # Arguments
@@ -805,8 +833,7 @@ mod tests {
 
     #[test]
     fn test_level_filtering() {
-        let mut logger = Logger::new();
-        logger.level(Level::Error); //Error as basis
+        let logger = Logger::new().level(Level::Error);
 
         //Test levels below
         assert!(Level::Info < logger.output_level);
@@ -820,8 +847,7 @@ mod tests {
 
     #[test]
     fn test_level_none() {
-        let mut logger = Logger::new();
-        logger.level(Level::None); //Set to None
+        let logger = Logger::new().level(Level::None);
 
         //Test levels below
         assert!(Level::Info < logger.output_level);
@@ -833,8 +859,7 @@ mod tests {
 
     #[test]
     fn test_log_format() {
-        let mut logger = Logger::new();
-        logger.log_format("{level} - {message}");
+        let logger = Logger::new().log_format("{level} - {message}");
 
         let formatted_message = logger
             .log_format
@@ -859,8 +884,7 @@ mod tests {
         );
 
         // Enable file output and disable terminal output.
-        logger.file(true);
-        logger.terminal(false);
+        logger = logger.file(true).terminal(false);
 
         assert!(logger.file_output, "File output was not enabled");
         assert!(!logger.terminal_output, "Terminal output was not disabled");
@@ -868,9 +892,7 @@ mod tests {
 
     #[test]
     fn test_ignore_levels() {
-        let mut logger = Logger::new();
-        logger.ignore(Level::Debug);
-        logger.ignore(Level::Warning);
+        let logger = Logger::new().ignore(Level::Debug).ignore(Level::Warning);
 
         assert!(
             logger.ignore.contains(&Level::Debug),
@@ -888,8 +910,7 @@ mod tests {
 
     #[test]
     fn test_style_assignment() {
-        let mut logger = Logger::new();
-        logger.style(Level::Info, vec![Style::FGGreen, Style::Bold]);
+        let logger = Logger::new().style(Level::Info, vec![Style::FGGreen, Style::Bold]);
 
         let styles = logger.styles(Level::Info);
         assert!(

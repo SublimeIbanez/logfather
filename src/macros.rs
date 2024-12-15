@@ -7,9 +7,8 @@
 /// ``` no_run
 /// use logfather::trace;
 /// trace!("This is a normal trace message");
-/// trace!("key1" = "value1", "key2" = "value2"; "This is a structured trace message")
-/// let hashy: std::collections::HashMap<&str, &str> =
-///     std::collections::HashMap::from([("key1", "value1"), ("key2", "value2")]);
+/// trace!("key1" = "value1", "key2" = "value2"; "This is a structured trace message");
+/// let hashy: std::collections::HashMap<&str, &str> = std::collections::HashMap::from([("key1", "value1"), ("key2", "value2")]);
 /// trace!(hashy; "This is also a structured trace message")
 /// ```
 #[macro_export]
