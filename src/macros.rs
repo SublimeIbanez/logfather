@@ -524,7 +524,7 @@ macro_rules! r_crit {
 }
 
 // ##################################################################### FATAL #####################################################################
-/// Logs a critical message.
+/// Logs a fatal message.
 ///
 /// # Example
 ///
@@ -557,14 +557,14 @@ macro_rules! fatal {
     }};
 }
 
-/// Logs a critical message.
+/// Logs a fatal message.
 ///
 /// # Example
 ///
 /// ``` no_run
-/// use logfather::r_critical;
+/// use logfather::r_fatal;
 ///
-/// let result = r_critical!("This is a critical message");
+/// let result = r_fatal!("This is a fatal message");
 /// if result.is_err() {
 ///     println!("The log failed.");
 /// }
