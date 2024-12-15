@@ -6,11 +6,22 @@
 ///
 /// ``` no_run
 /// use logfather::trace;
-///
-/// trace!("This is a traced message");
+/// trace!("This is a normal trace message");
+/// trace!("key1" = "value1", "key2" = "value2"; "This is a structured trace message")
+/// let hashy: std::collections::HashMap<&str, &str> =
+///     std::collections::HashMap::from([("key1", "value1"), ("key2", "value2")]);
+/// trace!(hashy; "This is also a structured trace message")
 /// ```
 #[macro_export]
 macro_rules! trace {
+    ($arg1:expr; $($arg2:tt)+) => {{
+        $crate::structured_log($crate::Level::Trace, module_path!(), format_args!($($arg2)+), $arg1)
+    }};
+    ($($key:tt = $value:expr),*; $($arg:tt)*) => {{
+        let mut map: std::collections::HashMap<&str, &str> = std::collections::HashMap::new();
+        $( map.insert($key, $value); )*
+        $crate::structured_log($crate::Level::Trace, module_path!(), format_args!($($arg)*), map)
+    }};
     ($($arg:tt)*) => {{
         $crate::log($crate::Level::Trace, module_path!(), format_args!($($arg)*))
     }};
@@ -30,6 +41,14 @@ macro_rules! trace {
 /// ```
 #[macro_export]
 macro_rules! r_trace {
+    // ($arg1:expr; $($arg2:tt)+) => {{
+    //     $crate::structured_log($crate::Level::Trace, module_path!(), format_args!($($arg2)+), $arg1)
+    // }};
+    // ($($key:tt = $value:expr),*; $($arg:tt)*) => {{
+    //     let mut map: std::collections::HashMap<&str, &str> = std::collections::HashMap::new();
+    //     $( map.insert($key, $value); )*
+    //     $crate::structured_log($crate::Level::Trace, module_path!(), format_args!($($arg)*), map)
+    // }};
     ($($arg:tt)*) => {{
         $crate::result_log($crate::Level::Trace, module_path!(), format_args!($($arg)*))
     }};
@@ -47,10 +66,18 @@ macro_rules! r_trace {
 /// ```
 #[macro_export]
 macro_rules! debug {
+    ($arg1:expr; $($arg2:tt)+) => {{
+        $crate::structured_log($crate::Level::Debug, module_path!(), format_args!($($arg2)+), $arg1)
+    }};
+    ($($key:tt = $value:expr),*; $($arg:tt)*) => {{
+        let mut map: std::collections::HashMap<&str, &str> = std::collections::HashMap::new();
+        $( map.insert($key, $value); )*
+        $crate::structured_log($crate::Level::Debug, module_path!(), format_args!($($arg)*), map)
+    }};
     ($($arg:tt)*) => {
         #[cfg(debug_assertions)]
         {
-        $crate::log($crate::Level::Debug, module_path!(), format_args!($($arg)*))
+            $crate::log($crate::Level::Debug, module_path!(), format_args!($($arg)*))
         }
     };
 }
@@ -93,8 +120,16 @@ macro_rules! r_debug {
 /// ```
 #[macro_export]
 macro_rules! info {
+    ($arg1:expr; $($arg2:tt)+) => {{
+        $crate::structured_log($crate::Level::Info, module_path!(), format_args!($($arg2)+), $arg1)
+    }};
+    ($($key:tt = $value:expr),*; $($arg:tt)*) => {{
+        let mut map: std::collections::HashMap<&str, &str> = std::collections::HashMap::new();
+        $( map.insert($key, $value); )*
+        $crate::structured_log($crate::Level::Info, module_path!(), format_args!($($arg)*), map)
+    }};
     ($($arg:tt)*) => {{
-        $crate::log($crate::Level::Info, module_path!(), format_args!($($arg)*));
+        $crate::log($crate::Level::Info, module_path!(), format_args!($($arg)*))
     }};
 }
 
@@ -131,6 +166,14 @@ macro_rules! r_info {
 /// This macro simplifies the process of logging a message at the `Warning` level.
 #[macro_export]
 macro_rules! warning {
+    ($arg1:expr; $($arg2:tt)+) => {{
+        $crate::structured_log($crate::Level::Warning, module_path!(), format_args!($($arg2)+), $arg1)
+    }};
+    ($($key:tt = $value:expr),*; $($arg:tt)*) => {{
+        let mut map: std::collections::HashMap<&str, &str> = std::collections::HashMap::new();
+        $( map.insert($key, $value); )*
+        $crate::structured_log($crate::Level::Warning, module_path!(), format_args!($($arg)*), map)
+    }};
     ($($arg:tt)*) => {{
         $crate::log($crate::Level::Warning, module_path!(), format_args!($($arg)*))
     }};
@@ -149,6 +192,14 @@ macro_rules! warning {
 /// This macro simplifies the process of logging a message at the `Warning` level.
 #[macro_export]
 macro_rules! warn {
+    ($arg1:expr; $($arg2:tt)+) => {{
+        $crate::structured_log($crate::Level::Warning, module_path!(), format_args!($($arg2)+), $arg1)
+    }};
+    ($($key:tt = $value:expr),*; $($arg:tt)*) => {{
+        let mut map: std::collections::HashMap<&str, &str> = std::collections::HashMap::new();
+        $( map.insert($key, $value); )*
+        $crate::structured_log($crate::Level::Warning, module_path!(), format_args!($($arg)*), map)
+    }};
     ($($arg:tt)*) => {{
         $crate::log($crate::Level::Warning, module_path!(), format_args!($($arg)*))
     }};
@@ -210,6 +261,14 @@ macro_rules! r_warn {
 /// Use this macro for logging errors, typically when an operation fails or an unexpected condition occurs.
 #[macro_export]
 macro_rules! error {
+    ($arg1:expr; $($arg2:tt)+) => {{
+        $crate::structured_log($crate::Level::Error, module_path!(), format_args!($($arg2)+), $arg1)
+    }};
+    ($($key:tt = $value:expr),*; $($arg:tt)*) => {{
+        let mut map: std::collections::HashMap<&str, &str> = std::collections::HashMap::new();
+        $( map.insert($key, $value); )*
+        $crate::structured_log($crate::Level::Error, module_path!(), format_args!($($arg)*), map)
+    }};
     ($($arg:tt)*) => {{
         $crate::log($crate::Level::Error, module_path!(), format_args!($($arg)*))
     }};
@@ -250,6 +309,14 @@ macro_rules! r_error {
 /// This macro is intended for critical errors that require immediate attention. Logging at this level typically indicates a serious failure in a component of the application.
 #[macro_export]
 macro_rules! critical {
+    ($arg1:expr; $($arg2:tt)+) => {{
+        $crate::structured_log($crate::Level::Critical, module_path!(), format_args!($($arg2)+), $arg1)
+    }};
+    ($($key:tt = $value:expr),*; $($arg:tt)*) => {{
+        let mut map: std::collections::HashMap<&str, &str> = std::collections::HashMap::new();
+        $( map.insert($key, $value); )*
+        $crate::structured_log($crate::Level::Critical, module_path!(), format_args!($($arg)*), map)
+    }};
     ($($arg:tt)*) => {{
         $crate::log($crate::Level::Critical, module_path!(), format_args!($($arg)*))
     }};
@@ -268,6 +335,14 @@ macro_rules! critical {
 /// This macro is intended for critical errors that require immediate attention. Logging at this level typically indicates a serious failure in a component of the application.
 #[macro_export]
 macro_rules! crit {
+    ($arg1:expr; $($arg2:tt)+) => {{
+        $crate::structured_log($crate::Level::Critical, module_path!(), format_args!($($arg2)+), $arg1)
+    }};
+    ($($key:tt = $value:expr),*; $($arg:tt)*) => {{
+        let mut map: std::collections::HashMap<&str, &str> = std::collections::HashMap::new();
+        $( map.insert($key, $value); )*
+        $crate::structured_log($crate::Level::Critical, module_path!(), format_args!($($arg)*), map)
+    }};
     ($($arg:tt)*) => {{
         $crate::log($crate::Level::Critical, module_path!(), format_args!($($arg)*))
     }};
@@ -315,6 +390,62 @@ macro_rules! r_crit {
     }};
 }
 
+// ##################################################################### FATAL #####################################################################
+/// Logs a critical message.
+///
+/// # Example
+///
+/// ``` no_run
+/// use logfather::critical;
+///
+/// critical!("This is a critical message");
+/// ```
+///
+/// This macro is intended for critical errors that require immediate attention. Logging at this level typically indicates a serious failure in a component of the application.
+#[macro_export]
+macro_rules! fatal {
+    ($arg1:expr; $($arg2:tt)+) => {{
+        $crate::structured_log($crate::Level::Fatal, module_path!(), format_args!($($arg2)+), $arg1)
+    }};
+    ($($key:tt = $value:expr),*; $($arg:tt)*) => {{
+        let mut map: std::collections::HashMap<&str, &str> = std::collections::HashMap::new();
+        $( map.insert($key, $value); )*
+        $crate::structured_log($crate::Level::Fatal, module_path!(), format_args!($($arg)*), map)
+    }};
+    ($($arg:tt)*) => {{
+        $crate::log($crate::Level::Fatal, module_path!(), format_args!($($arg)*))
+    }};
+}
+
+/// Logs a critical message.
+///
+/// # Example
+///
+/// ``` no_run
+/// use logfather::r_critical;
+///
+/// let result = r_critical!("This is a critical message");
+/// if result.is_err() {
+///     println!("The log failed.");
+/// }
+/// ```
+///
+/// This macro is intended for critical errors that require immediate attention. Logging at this level typically indicates a serious failure in a component of the application.
+#[macro_export]
+macro_rules! r_fatal {
+    // ($arg1:expr; $($arg2:tt)+) => {{
+    //     $crate::structured_log($crate::Level::Fatal, module_path!(), format_args!($($arg2)+), $arg1)
+    // }};
+    // ($($key:tt = $value:expr),*; $($arg:tt)*) => {{
+    //     let mut map: std::collections::HashMap<&str, &str> = std::collections::HashMap::new();
+    //     $( map.insert($key, $value); )*
+    //     $crate::structured_log($crate::Level::Fatal, module_path!(), format_args!($($arg)*), map)
+    // }};
+    ($($arg:tt)*) => {{
+        $crate::result_log($crate::Level::Fatal, module_path!(), format_args!($($arg)*))
+    }};
+}
+
 // ##################################################################### DIAGNOSTIC #####################################################################
 /// Logs a diagnostic message and ignores filters -- debug builds only.
 ///
@@ -327,6 +458,20 @@ macro_rules! r_crit {
 /// ```
 #[macro_export]
 macro_rules! diagnostic {
+    ($arg1:expr; $($arg2:tt)+) => {{
+        #[cfg(debug_assertions)]
+        {
+            $crate::structured_log($crate::Level::Diagnostic, module_path!(), format_args!($($arg2)+), $arg1)
+        }
+    }};
+    ($($key:tt = $value:expr),*; $($arg:tt)*) => {{
+        #[cfg(debug_assertions)]
+        {
+            let mut map: std::collections::HashMap<&str, &str> = std::collections::HashMap::new();
+            $( map.insert($key, $value); )*
+            $crate::structured_log($crate::Level::Diagnostic, module_path!(), format_args!($($arg)*), map)
+        }
+    }};
     ($($arg:tt)*) => {
         #[cfg(debug_assertions)]
         {
@@ -346,6 +491,20 @@ macro_rules! diagnostic {
 /// ```
 #[macro_export]
 macro_rules! diag {
+    ($arg1:expr; $($arg2:tt)+) => {{
+        #[cfg(debug_assertions)]
+        {
+            $crate::structured_log($crate::Level::Diagnostic, module_path!(), format_args!($($arg2)+), $arg1)
+        }
+    }};
+    ($($key:tt = $value:expr),*; $($arg:tt)*) => {{
+        #[cfg(debug_assertions)]
+        {
+            let mut map: std::collections::HashMap<&str, &str> = std::collections::HashMap::new();
+            $( map.insert($key, $value); )*
+            $crate::structured_log($crate::Level::Diagnostic, module_path!(), format_args!($($arg)*), map)
+        }
+    }};
     ($($arg:tt)*) => {
         #[cfg(debug_assertions)]
         {
@@ -368,6 +527,28 @@ macro_rules! diag {
 /// ```
 #[macro_export]
 macro_rules! r_diagnostic {
+    ($arg1:expr; $($arg2:tt)+) => {{
+        #[cfg(debug_assertions)]
+        {
+            $crate::structured_log($crate::Level::Diagnostic, module_path!(), format_args!($($arg2)+), $arg1)
+        }
+        #[cfg(not(debug_assertions))]
+        {
+            Ok::<(), LogfatherError>(())
+        }
+    }};
+    ($($key:tt = $value:expr),*; $($arg:tt)*) => {{
+        #[cfg(debug_assertions)]
+        {
+            let mut map: std::collections::HashMap<&str, &str> = std::collections::HashMap::new();
+            $( map.insert($key, $value); )*
+            $crate::structured_log($crate::Level::Diagnostic, module_path!(), format_args!($($arg)*), map)
+        }
+        #[cfg(not(debug_assertions))]
+        {
+            Ok::<(), LogfatherError>(())
+        }
+    }};
     ($($arg:tt)*) => {{
         #[cfg(debug_assertions)]
         {
@@ -394,6 +575,28 @@ macro_rules! r_diagnostic {
 /// ```
 #[macro_export]
 macro_rules! r_diag {
+    ($arg1:expr; $($arg2:tt)+) => {{
+        #[cfg(debug_assertions)]
+        {
+            $crate::structured_log($crate::Level::Diagnostic, module_path!(), format_args!($($arg2)+), $arg1)
+        }
+        #[cfg(not(debug_assertions))]
+        {
+            Ok::<(), LogfatherError>(())
+        }
+    }};
+    ($($key:tt = $value:expr),*; $($arg:tt)*) => {{
+        #[cfg(debug_assertions)]
+        {
+            let mut map: std::collections::HashMap<&str, &str> = std::collections::HashMap::new();
+            $( map.insert($key, $value); )*
+            $crate::structured_log($crate::Level::Diagnostic, module_path!(), format_args!($($arg)*), map)
+        }
+        #[cfg(not(debug_assertions))]
+        {
+            Ok::<(), LogfatherError>(())
+        }
+    }};
     ($($arg:tt)*) => {{
         #[cfg(debug_assertions)]
         {

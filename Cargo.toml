@@ -1,6 +1,6 @@
 [package]
 name = "logfather"
-version = "0.2.6"
+version = "0.2.7"
 authors = ["Joshua Benn"]
 description = "A simple and straightforward logging library for Rust."
 license = "MIT"
@@ -15,4 +15,3 @@ edition = "2021"
 chrono = "0.4.31"
 dekor = "0.2.2"
 lazy_static = "1.4.0"
-simplicio = "0.1.1"

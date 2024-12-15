@@ -1,4 +1,4 @@
-use crate::output::{file_output, terminal_output};
+use crate::output::{file_output, file_roller, terminal_output};
 use dekor::*;
 use lazy_static::lazy_static;
 use std::sync::{RwLockReadGuard, RwLockWriteGuard};
@@ -18,6 +18,8 @@ lazy_static! {
     pub static ref LOGGER: RwLock<Logger> = RwLock::new(Logger::default());
     pub static ref TERMINAL_BUFFER: RwLock<Vec<String>> = RwLock::new(Vec::new());
     pub static ref FILE_BUFFER: RwLock<Vec<String>> = RwLock::new(Vec::new());
+    pub static ref FILE: RwLock<Option<std::fs::File>> = RwLock::new(None);
+    pub static ref LOCKED: RwLock<bool> = RwLock::new(false);
 }
 
 /// Replaces the current global logger instance with a new one.
@@ -75,6 +77,7 @@ pub fn set_logger(new_logger: &Logger) {
 /// logger.file_ignore(Level::Error); //Ignores the Error level messages for file output
 /// logger.terminal_ignore(Level::Error); //Ignores the Error level messages for terminal output
 /// logger.log_format("[{timestamp} {level}] {message}"); // Set a custom format for log messages
+/// logger.structured_format("\n{key}: {value}"); // Set custom format for structured log messages
 /// logger.timestamp_format("%Y-%m-%d %H:%M:%S"); // Set a custom format for timestamps
 /// logger.add_style(Level::Info, Style::Underline); // Set the style for INFO to Underlined in terminal output
 /// ```
@@ -90,10 +93,12 @@ pub struct Logger {
     pub file_path: Option<PathBuf>,
     pub file_ignore: Vec<Level>,
     pub file_buffer_interval: std::time::Duration,
+    pub file_rollover: usize,
     // General
     pub output_level: Level,
     pub ignore: Vec<Level>,
     pub log_format: String,
+    pub structured_format: String,
     pub timezone: TimeZone,
     pub timestamp_format: String,
     pub styles: HashMap<Level, Vec<Style>>,
@@ -118,10 +123,12 @@ impl Default for Logger {
             file_path: None,
             file_ignore: vec![],
             file_buffer_interval: std::time::Duration::from_nanos(0),
+            file_rollover: 0,
             // General
             output_level: Level::Trace,
             ignore: vec![],
             log_format: String::from("[{timestamp} {level} {module_path}] {message}"),
+            structured_format: String::from("\n\t{key}: {value}"),
             timezone: TimeZone::Local,
             timestamp_format: String::from("%Y-%m-%d %H:%M:%S"),
             styles: HashMap::from([
@@ -136,12 +143,16 @@ impl Default for Logger {
             ]),
         };
 
-        let _ = std::thread::spawn(|| {
+        let _terminal_output = std::thread::spawn(|| {
             terminal_output();
         });
 
-        let _ = std::thread::spawn(|| {
+        let _file_output = std::thread::spawn(|| {
             file_output();
+        });
+
+        let _file_roller = std::thread::spawn(|| {
+            file_roller();
         });
 
         return logger;
@@ -198,6 +209,7 @@ impl Logger {
     /// let mut logger = Logger::new();
     /// logger.terminal(false); // Disable terminal output
     /// ```
+    #[inline]
     pub fn terminal(&self, value: bool) -> Self {
         {
             LOGGER
@@ -211,6 +223,7 @@ impl Logger {
             .clone();
     }
 
+    #[inline]
     pub fn terminal_std_output(&mut self, value: OutputDirection) -> Self {
         {
             LOGGER
@@ -224,6 +237,7 @@ impl Logger {
             .clone();
     }
 
+    #[inline]
     pub fn terminal_buffer_interval(&mut self, duration: std::time::Duration) -> Self {
         {
             LOGGER
@@ -252,6 +266,7 @@ impl Logger {
     /// let mut logger = Logger::new();
     /// logger.terminal_ignore(Level::Warning); // Messages of `Warning` level will be ignored
     /// ```
+    #[inline]
     pub fn terminal_ignore(&mut self, level: Level) -> Self {
         {
             LOGGER
@@ -283,6 +298,7 @@ impl Logger {
     /// logger.file(true); // Enable file output
     /// logger.path("/var/log/my_app.log"); // Set the path for file logging
     /// ```
+    #[inline]
     pub fn file(&mut self, value: bool) -> Self {
         {
             LOGGER
@@ -311,6 +327,7 @@ impl Logger {
     /// let mut logger = Logger::new();
     /// logger.path("/var/log/my_app.log");
     /// ```
+    #[inline]
     pub fn path(&mut self, path: &str) -> Self {
         // Create parent directories if necessary.
         if let Some(parent) = PathBuf::from(&path).parent() {
@@ -324,6 +341,17 @@ impl Logger {
             p = std::env::current_dir().expect("Could not open path");
             // Append default file name
             p.push(".logger");
+        }
+        {
+            *FILE.write().expect("Could not overwrite FILE") = Some(
+                std::fs::OpenOptions::new()
+                    .create(true)
+                    .read(true)
+                    .write(true)
+                    .truncate(false)
+                    .open(&p)
+                    .expect("Could not open file"),
+            );
         }
         {
             LOGGER
@@ -352,6 +380,7 @@ impl Logger {
     /// let mut logger = Logger::new();
     /// logger.file_ignore(Level::Warning); // Messages of `Warning` level will be ignored
     /// ```
+    #[inline]
     pub fn file_ignore(&mut self, level: Level) -> Self {
         {
             LOGGER
@@ -366,12 +395,27 @@ impl Logger {
             .clone();
     }
 
+    #[inline]
     pub fn file_buffer_interval(&mut self, duration: std::time::Duration) -> Self {
         {
             LOGGER
                 .write()
                 .expect("Could not get logger for overwrite function.")
                 .file_buffer_interval = duration;
+        }
+        return LOGGER
+            .read()
+            .expect("Could not return logger clone: file_interval")
+            .clone();
+    }
+
+    #[inline]
+    pub fn file_rollover(&mut self, lines: usize) -> Self {
+        {
+            LOGGER
+                .write()
+                .expect("Could not get logger for overwrite function.")
+                .file_rollover = lines;
         }
         return LOGGER
             .read()
@@ -652,16 +696,27 @@ impl Logger {
             .clone();
     }
 
-    pub fn cleanup(&self) {
-        while !FILE_BUFFER
-            .read()
-            .expect("Could not read file buffer")
-            .is_empty()
-            && !TERMINAL_BUFFER
-                .read()
-                .expect("Could not read terminal buffer")
-                .is_empty()
-        {
+    pub fn sync(&self) {
+        loop {
+            {
+                if FILE_BUFFER
+                    .read()
+                    .expect("Could not get file buffer for sync")
+                    .clone()
+                    .is_empty()
+                    && TERMINAL_BUFFER
+                        .read()
+                        .expect("Could not get terminal buffer for sync")
+                        .clone()
+                        .is_empty()
+                    && !LOCKED
+                        .read()
+                        .expect("Could not get locked for sync")
+                        .clone()
+                {
+                    break;
+                }
+            }
             std::thread::sleep(std::time::Duration::from_millis(100));
         }
     }
@@ -700,6 +755,7 @@ pub enum Level {
     Warning = 3,
     Error = 4,
     Critical = 5,
+    Fatal = 6,
     Diagnostic = 245,
     None = 255,
 }
@@ -713,6 +769,7 @@ impl std::fmt::Display for Level {
             Level::Warning => write!(f, "WARNING   "),
             Level::Error => write!(f, "ERROR     "),
             Level::Critical => write!(f, "CRITICAL  "),
+            Level::Fatal => write!(f, "FATAL     "),
             Level::Diagnostic => write!(f, "DIAGNOSTIC"),
             Level::None => write!(f, "NONE      "),
         }

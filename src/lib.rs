@@ -16,7 +16,7 @@
 //! To start using Logfather, add the following to your `Cargo.toml`:
 //! ```toml
 //! [dependencies]
-//! logfather = "0.2.6"
+//! logfather = "0.2.7"
 //! - Check out [crates.io](https://crates.io/crates/logfather)
 //! ```
 //! - Minimum supported Rust version: `1.61.0`
@@ -109,6 +109,7 @@ pub use logger::OutputDirection;
 pub use error::LogfatherError;
 pub use error::LogfatherResult;
 pub use output::log;
+pub use output::structured_log;
 pub use output::result_log;
 
 #[doc = include_str!("../README.md")]

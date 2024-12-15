@@ -1,10 +1,12 @@
 use crate::{
     error::*,
-    logger::{OutputDirection, FILE_BUFFER, LOGGER, TERMINAL_BUFFER, TimeZone, Level}
+    logger::{
+        Level, OutputDirection, TimeZone, FILE, FILE_BUFFER, LOCKED, LOGGER, TERMINAL_BUFFER,
+    },
 };
-use dekor::*;
 use chrono::{Local, Utc};
-use std::io::{stderr, stdout, BufWriter, Write};
+use dekor::*;
+use std::io::{stderr, stdout, BufRead, BufWriter, Seek, Write};
 
 // ##################################################################### Log Definition #####################################################################
 
@@ -75,12 +77,92 @@ pub fn log(level: Level, module_path: &str, args: std::fmt::Arguments) {
             .push(format);
     }
 
+    let format = log_format.replace("{level}", &level.to_string());
+
+    //Only write to the file if both of these are true
+    if logger.file_output && !logger.file_ignore.contains(&level) && logger.file_path.is_some() {
+        FILE_BUFFER
+            .write()
+            .expect("Could not push to buffer")
+            .push(format);
+    }
+}
+
+pub fn structured_log(
+    level: Level,
+    module_path: &str,
+    args: std::fmt::Arguments,
+    map: std::collections::HashMap<&str, &str>,
+) {
+    //Grab a clone of the logger to not hold up any other potential logging threads
+    let logger;
+    {
+        logger = LOGGER.read().expect("Could not read logger").clone();
+    }
+
+    //If the level is too low then return
+    if level < logger.output_level || logger.ignore.contains(&level) {
+        return;
+    }
+
+    let message = format!("{}", args);
+
+    //Get the time
+    let time = match logger.timezone {
+        TimeZone::Local => {
+            let now = Local::now();
+            now.format(&logger.timestamp_format).to_string()
+        }
+        TimeZone::Utc => {
+            let now = Utc::now();
+            now.format(&logger.timestamp_format).to_string()
+        }
+    };
+
+    let mut structure: std::collections::HashMap<&str, &str> = std::collections::HashMap::from([
+        ("timestamp", time.as_ref()),
+        ("module_path", module_path),
+        ("message", message.as_ref()),
+    ]);
+
+    //Replace the relevant sections in the format
+    let mut log_format = logger.log_format;
+    structure.iter().for_each(|(key, value)| {
+        log_format = log_format.replace(&format!("{{{}}}", key), value);
+    });
+    map.into_iter().for_each(|(key, value)| {
+        log_format += &logger
+            .structured_format
+            .replace("{key}", key)
+            .replace("{value}", value);
+    });
+
+    //Terminal output
+    if logger.terminal_output && !logger.terminal_ignore.contains(&level) {
+        // Set color
+        let styles = logger.styles.get(&level).unwrap();
+
+        // Output-specific level replacement
+        let format = log_format.replace("{level}", &style(styles.clone(), level));
+
+        // Write to terminal buffer
+        TERMINAL_BUFFER
+            .write()
+            .expect("Could not get terminal buffer")
+            .push(format);
+    }
+
+    let lvl = level.to_string();
+    structure.insert("level", lvl.as_ref());
+    structure.iter().for_each(|(key, value)| {
+        log_format = log_format.replace(&format!("{{{}}}", key), value);
+    });
+
     //Only write to the file if both of these are true
     if logger.file_output && !logger.file_ignore.contains(&level) && logger.file_path.is_some() {
         //Output-specific level replacement
-        let format = log_format.replace("{level}", &level.to_string());
 
-        FILE_BUFFER.write().expect("").push(format);
+        FILE_BUFFER.write().expect("").push(log_format);
     }
 }
 
@@ -225,38 +307,99 @@ pub(crate) fn terminal_output() {
 
 pub(crate) fn file_output() {
     let mut logger;
-    let mut buffer;
     // Use scopes to ensure dropping of lock
     loop {
         {
             logger = LOGGER.read().expect("Could not read logger").clone();
         }
-        if !logger.file_output {
+        if !logger.file_output || logger.file_path.is_none() {
             std::thread::sleep(logger.file_buffer_interval);
             continue;
         }
         {
-            if let Some(path) = logger.file_path {
-                let file = std::fs::OpenOptions::new()
-                    .create(true)
-                    .read(true)
-                    .append(true)
-                    .open(path)
-                    .expect("Could not open file");
-                {
-                    buffer = std::io::BufWriter::new(file);
+            let mut file = FILE.write().expect("FILE lock is poisoned");
+            if file.is_none() {
+                std::thread::sleep(logger.file_buffer_interval);
+                continue;
+            }
+            file.as_mut()
+                .unwrap()
+                .seek(std::io::SeekFrom::End(0))
+                .unwrap();
+
+            let mut writer = std::io::BufWriter::new(file.as_mut().unwrap());
+            {
+                let mut file_buffer = FILE_BUFFER
+                    .write()
+                    .expect("Could not read from file buffer");
+                file_buffer
+                    .iter()
+                    .for_each(|line| _ = writeln!(writer, "{}", line));
+                file_buffer.clear();
+            }
+            _ = writer.flush();
+        }
+
+        std::thread::sleep(logger.terminal_buffer_interval);
+    }
+}
+
+pub(crate) fn file_roller() {
+    let mut logger;
+    // Use scopes to ensure dropping of lock
+    loop {
+        {
+            logger = LOGGER.read().expect("Could not read logger").clone();
+        }
+        if !logger.file_output || logger.file_path.is_none() {
+            std::thread::sleep(logger.file_buffer_interval);
+            continue;
+        }
+        {
+            if logger.file_rollover == 0 {
+                std::thread::sleep(logger.file_buffer_interval);
+                continue;
+            }
+            {
+                let mut logs: Vec<String>;
+                let mut file = FILE.write().expect("Could not rollover file");
+                if file.is_none() {
+                    std::thread::sleep(logger.file_buffer_interval);
+                    continue;
                 }
+
+                file.as_mut()
+                    .unwrap()
+                    .seek(std::io::SeekFrom::Start(0))
+                    .unwrap();
+                // Read the file in
                 {
-                    let mut file_buffer = FILE_BUFFER
-                        .write()
-                        .expect("Could not read from file buffer");
-                    file_buffer.iter().for_each(|line| {
-                        _ = writeln!(buffer, "{}", line);
-                    });
-                    file_buffer.clear();
+                    let reader = std::io::BufReader::new(file.as_ref().unwrap());
+                    logs = reader.lines().flatten().collect();
                 }
-                _ = buffer.flush();
-            };
+
+                if logs.len() <= logger.file_rollover {
+                    std::thread::sleep(logger.file_buffer_interval);
+                    continue;
+                }
+
+                {
+                    *LOCKED.write().expect("Could not write to wait") = true;
+                }
+                _ = file.as_mut().unwrap().set_len(0);
+                file.as_mut()
+                    .unwrap()
+                    .seek(std::io::SeekFrom::Start(0))
+                    .unwrap();
+                let logs = logs.split_off(logs.len() - logger.file_rollover);
+                let mut writer = std::io::BufWriter::new(file.as_mut().unwrap());
+                logs.into_iter()
+                    .for_each(|line| _ = writeln!(writer, "{}", line));
+                _ = writer.flush();
+                {
+                    *LOCKED.write().expect("Could not write to wait") = false;
+                }
+            }
         }
 
         std::thread::sleep(logger.terminal_buffer_interval);
