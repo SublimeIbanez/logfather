@@ -128,7 +128,7 @@ impl Default for Logger {
             output_level: Level::Trace,
             ignore: vec![],
             log_format: String::from("[{timestamp} {level} {module_path}] {message}"),
-            structured_format: String::from("\n\t{key}: {value}"),
+            structured_format: String::from(" {key}: {value}"),
             timezone: TimeZone::Local,
             timestamp_format: String::from("%Y-%m-%d %H:%M:%S"),
             styles: HashMap::from([

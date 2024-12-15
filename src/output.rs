@@ -119,7 +119,7 @@ pub fn structured_log(
         }
     };
 
-    let mut structure: std::collections::HashMap<&str, &str> = std::collections::HashMap::from([
+    let structure: std::collections::HashMap<&str, &str> = std::collections::HashMap::from([
         ("timestamp", time.as_ref()),
         ("module_path", module_path),
         ("message", message.as_ref()),
@@ -130,20 +130,35 @@ pub fn structured_log(
     structure.iter().for_each(|(key, value)| {
         log_format = log_format.replace(&format!("{{{}}}", key), value);
     });
+    let mut i = map.len();
+    let map_exists = i > 0;
+    if map_exists {
+        log_format += " {"
+    }
     map.into_iter().for_each(|(key, value)| {
         log_format += &logger
             .structured_format
             .replace("{key}", key)
             .replace("{value}", value);
+        if i > 1 {
+            log_format += ","
+        }
+        i -= 1;
     });
+    if map_exists {
+        log_format += " }"
+    }
 
-    //Terminal output
+    // Terminal output
     if logger.terminal_output && !logger.terminal_ignore.contains(&level) {
         // Set color
-        let styles = logger.styles.get(&level).unwrap();
+        let styles: Vec<Style> = match logger.styles.get(&level) {
+            Some(s) => s.clone(),
+            None => Vec::new(),
+        };
 
         // Output-specific level replacement
-        let format = log_format.replace("{level}", &style(styles.clone(), level));
+        let format = log_format.replace("{level}", &style(styles, level));
 
         // Write to terminal buffer
         TERMINAL_BUFFER
@@ -152,17 +167,15 @@ pub fn structured_log(
             .push(format);
     }
 
-    let lvl = level.to_string();
-    structure.insert("level", lvl.as_ref());
-    structure.iter().for_each(|(key, value)| {
-        log_format = log_format.replace(&format!("{{{}}}", key), value);
-    });
-
-    //Only write to the file if both of these are true
+    // File Output
     if logger.file_output && !logger.file_ignore.contains(&level) && logger.file_path.is_some() {
         //Output-specific level replacement
+        let format = log_format.replace("{level}", level.to_string().as_ref());
 
-        FILE_BUFFER.write().expect("").push(log_format);
+        FILE_BUFFER
+            .write()
+            .expect("Could not get file buffer")
+            .push(format);
     }
 }
 
